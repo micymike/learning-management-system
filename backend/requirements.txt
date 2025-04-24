@@ -1,0 +1,8 @@
+
+uvicorn
+python-dotenv
+openai
+requests
+pandas
+
+flask
