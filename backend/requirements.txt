@@ -1,8 +1,9 @@
-
-uvicorn
+flask
+flask-cors
+pandas
+odfpy
+openpyxl
 python-dotenv
 openai
 requests
-pandas
-
-flask
+uvicorn

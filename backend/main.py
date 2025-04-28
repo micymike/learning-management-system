@@ -1,8 +1,10 @@
 # this will be the entry point of the app
 from flask import Flask, jsonify
+from flask_cors import CORS
 from routes.routes import routes_blueprint
 
 app = Flask(__name__)
+CORS(app)
 app.register_blueprint(routes_blueprint)
 
 # Global error handlers to ensure JSON responses

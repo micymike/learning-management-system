@@ -20,9 +20,23 @@ A web-based application that automates the grading of coding assignments submitt
 - Pandas for data processing and report generation
 
 ### Frontend
-- React with Material-UI
-- React Router for navigation
-- Axios for API communication
+- React with Vite
+- Framer Motion for animations
+- CSS Variables for theming
+- Fetch API for network requests
+
+## Environment Variables
+
+### Frontend (.env file)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| VITE_API_URL | URL of the backend API | http://localhost:5000/api |
+
+You can copy the `.env.example` file to create your own `.env` file:
+```
+cp frontend/.env.example frontend/.env
+```
 
 ## Setup Instructions
 
@@ -62,7 +76,9 @@ A web-based application that automates the grading of coding assignments submitt
    ```
    python run.py
    ```
-   The API will be available at http://localhost:8000
+   The API will be available at http://localhost:5000/api
+
+   > **Note:** The frontend is configured to connect to the backend at http://localhost:5000/api by default. If you need to change this, update the `VITE_API_URL` in the frontend's `.env` file.
 
 ### Frontend Setup
 
@@ -71,16 +87,22 @@ A web-based application that automates the grading of coding assignments submitt
    cd frontend
    ```
 
-2. Install dependencies:
+2. Create an environment file:
+   ```
+   cp .env.example .env
+   ```
+   Edit the `.env` file to configure your environment variables.
+
+3. Install dependencies:
    ```
    npm install
    ```
 
-3. Run the development server:
+4. Run the development server:
    ```
-   npm start
+   npm run dev
    ```
-   The application will be available at http://localhost:3000
+   The application will be available at http://localhost:5173
 
 ## Usage Guide
 

@@ -5,6 +5,23 @@ from csv_analyzer import process_csv
 from rubric_handler import upload_rubric_file
 from repo_analyzer import analyze_github_repo
 
+def format_report(name, repo_url, assessment):
+    """
+    Returns a Markdown-formatted report for the assessment.
+    """
+    return f"""## Code Assessment Report for {name}
+
+**Repository:** [{repo_url}]({repo_url})
+
+---
+
+### Assessment Summary
+{assessment}
+
+---
+*Generated on request*
+"""
+
 routes_blueprint = Blueprint('routes', __name__)
 
 @routes_blueprint.route("/assess", methods=["POST"])
@@ -26,10 +43,12 @@ def upload_csv():
         repo_analysis = analyze_github_repo(repo_url)
         # Assess the code (assuming assess_code can work with repo_analysis)
         assessment = assess_code(repo_analysis, None, client)  # Pass rubric if needed
+        report = format_report(name, repo_url, assessment)
         results.append({
             "name": name,
             "repo_url": repo_url,
-            "assessment": assessment
+            "assessment": assessment,
+            "report": report
         })
     return jsonify({"results": results})
 

@@ -1,0 +1,27 @@
+.report-container {
+  margin: 2.5rem auto;
+  max-width: 800px;
+}
+
+.report-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px 0 rgba(41, 171, 135, 0.10);
+  margin-bottom: 2.2rem;
+  padding: 2rem 2.2rem;
+  border: 2px solid #29AB87;
+  transition: box-shadow 0.4s cubic-bezier(.4,2,.6,1);
+}
+
+.jungle-green-border {
+  border-color: #29AB87;
+}
+
+.report-content {
+  font-size: 1.13rem;
+  color: #1d3c34;
+  line-height: 1.7;
+  letter-spacing: 0.01em;
+  word-break: break-word;
+  white-space: pre-line;
+}
