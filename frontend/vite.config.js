@@ -8,5 +8,10 @@ export default defineConfig({
     port: 5173, // specify default port
     host: true, // listen on all addresses
     strictPort: true, // fail if port is already in use
+    allowedHosts: [
+      'directed-codeanalyzer.onrender.com',
+      'localhost',
+      '127.0.0.1'
+    ]
   }
 })
