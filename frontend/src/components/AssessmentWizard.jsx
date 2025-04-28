@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { AnimatePresence } from "framer-motion"; // Keep AnimatePresence if needed for step transitions
-import * as XLSX from 'xlsx'; // Import xlsx library
+import { AnimatePresence } from "framer-motion";
+import * as XLSX from 'xlsx';
 import { assessApi } from "../services/api";
 import "./AssessmentWizard.css";
 
@@ -116,8 +116,6 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
       Name: result.name,
       Repository: result.repo_url,
       Assessment: result.report || result.assessment,
-      // Add score extraction if available and needed
-      // Score: extractScore(result.report || result.assessment) 
     }));
 
     // Create worksheet
@@ -132,10 +130,7 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
   };
 
   return (
-    <div 
-      className="wizard-container"
-      // Removed motion props
-    >
+    <div className="wizard-container">
       <div className="wizard-header">
         <h2>Create New Assessment</h2>
         <button className="close-btn" onClick={onCancel}>×</button>
@@ -156,11 +151,7 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
       <div className="wizard-content">
         <AnimatePresence mode="wait">
           {currentStep === 0 && (
-            <div 
-              key="step1"
-              className="wizard-step"
-              // Removed motion props
-            >
+            <div key="step1" className="wizard-step">
               <div className="form-group">
                 <label>Assessment Name</label>
                 <input 
@@ -196,11 +187,7 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
           )}
 
           {currentStep === 1 && (
-            <div 
-              key="step2"
-              className="wizard-step"
-              // Removed motion props
-            >
+            <div key="step2" className="wizard-step">
               <div className="rubric-preview">
                 <h3>Assessment Rubric</h3>
                 <pre>{rubric}</pre>
@@ -222,32 +209,40 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
           )}
 
           {currentStep === 2 && (
-            <div 
-              key="step3"
-              className="wizard-step"
-              // Removed motion props
-            >
+            <div key="step3" className="wizard-step">
               <div className="results-header">
                 <h3>Assessment Results</h3>
-                <button 
-                  className="download-btn"
-                  onClick={handleDownloadReport}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                  </svg>
-                  Download Report
-                </button>
+                <div className="results-actions">
+                  <button 
+                    className="download-btn"
+                    onClick={handleDownloadReport}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="7 10 12 15 17 10"></polyline>
+                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Download Report (.xlsx)
+                  </button>
+                  <button 
+                    className="next-btn finish-btn"
+                    onClick={handleNext}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <div className="loading-spinner-small"></div>
+                    ) : (
+                      "Finish"
+                    )}
+                  </button>
+                </div>
               </div>
               
-              <div className="results-list">
+              <div className="results-list scrollable">
                 {results.map((result, index) => (
                   <div 
                     key={index}
                     className="result-card"
-                    // Removed motion props
                   >
                     <div className="result-header">
                       <h4>{result.name}</h4>
@@ -270,31 +265,31 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
 
       {error && <div className="error-message">{error}</div>}
 
-      <div className="wizard-actions">
-        {currentStep > 0 && (
+      {currentStep < 2 && (
+        <div className="wizard-actions">
+          {currentStep > 0 && (
+            <button 
+              className="back-btn"
+              onClick={() => setCurrentStep(currentStep - 1)}
+              disabled={loading}
+            >
+              Back
+            </button>
+          )}
+          
           <button 
-            className="back-btn"
-            onClick={() => setCurrentStep(currentStep - 1)}
+            className="next-btn"
+            onClick={handleNext}
             disabled={loading}
           >
-            Back
+            {loading ? (
+              <div className="loading-spinner-small"></div>
+            ) : (
+              "Next"
+            )}
           </button>
-        )}
-        
-        <button 
-          className="next-btn"
-          onClick={handleNext}
-          disabled={loading}
-        >
-          {loading ? (
-            <div className="loading-spinner-small"></div>
-          ) : currentStep === steps.length - 1 ? (
-            "Finish"
-          ) : (
-            "Next"
-          )}
-        </button>
-      </div>
+        </div>
+      )}
     </div>
   );
 };
