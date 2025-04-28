@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { assessApi } from "../services/api";
+import * as XLSX from 'xlsx'; // Import xlsx library
+// Removed unused import: import { assessApi } from "../services/api";
+// Removed unused import: import { motion } from "framer-motion";
 import "./AssessmentDetails.css";
 
 const AssessmentDetails = ({ assessment, onBack }) => {
   const [activeTab, setActiveTab] = useState("results");
   const [currentAssessment, setCurrentAssessment] = useState(assessment);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [loading] = useState(false); // Keep loading state for button disable logic
+  const [error] = useState(null); // Keep error state for potential future use or display
   
   // Set the current assessment from props
   useEffect(() => {
@@ -15,25 +16,34 @@ const AssessmentDetails = ({ assessment, onBack }) => {
       setCurrentAssessment(assessment);
     }
   }, [assessment]);
-  
+
   const handleDownloadReport = () => {
-    const reportContent = currentAssessment.results.map(r => r.report || r.assessment).join('\n\n---\n\n');
-    const blob = new Blob([reportContent], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${currentAssessment.name || 'assessment'}-report.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    if (!currentAssessment || !currentAssessment.results) return;
+
+    // Prepare data for Excel sheet
+    const reportData = currentAssessment.results.map(result => ({
+      Name: result.name,
+      Repository: result.repo_url,
+      Assessment: result.report || result.assessment,
+      // Add score extraction if available and needed
+      // Score: extractScore(result.report || result.assessment) 
+    }));
+
+    // Create worksheet
+    const ws = XLSX.utils.json_to_sheet(reportData);
+
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Assessment Results");
+
+    // Generate Excel file and trigger download
+    XLSX.writeFile(wb, `${currentAssessment.name || 'assessment'}-report.xlsx`);
   };
 
   return (
-    <motion.div 
+    <div 
       className="assessment-details"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      // Removed motion props: initial, animate, exit
     >
       <div className="details-header">
         <button className="back-button" onClick={onBack}>
@@ -113,12 +123,10 @@ const AssessmentDetails = ({ assessment, onBack }) => {
           <div className="results-grid">
             {currentAssessment.results && currentAssessment.results.length > 0 ? (
               currentAssessment.results.map((result, index) => (
-                <motion.div 
+                <div 
                   key={index}
                   className="result-item"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
+                  // Removed motion props: initial, animate, transition
                 >
                   <div className="result-header">
                     <h3>{result.name}</h3>
@@ -139,7 +147,7 @@ const AssessmentDetails = ({ assessment, onBack }) => {
                       __html: window.marked ? window.marked.parse(result.report || result.assessment) : (result.report || result.assessment) 
                     }} />
                   </div>
-                </motion.div>
+                </div>
               ))
             ) : (
               <div className="empty-results">
@@ -163,7 +171,7 @@ const AssessmentDetails = ({ assessment, onBack }) => {
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 };
 

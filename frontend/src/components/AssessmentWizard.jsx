@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence } from "framer-motion"; // Keep AnimatePresence if needed for step transitions
+import * as XLSX from 'xlsx'; // Import xlsx library
 import { assessApi } from "../services/api";
 import "./AssessmentWizard.css";
 
@@ -108,23 +109,32 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
   };
 
   const handleDownloadReport = () => {
-    const reportContent = results.map(r => r.report || r.assessment).join('\n\n---\n\n');
-    const blob = new Blob([reportContent], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${assessmentName || 'assessment'}-report.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    if (!results || results.length === 0) return;
+
+    // Prepare data for Excel sheet
+    const reportData = results.map(result => ({
+      Name: result.name,
+      Repository: result.repo_url,
+      Assessment: result.report || result.assessment,
+      // Add score extraction if available and needed
+      // Score: extractScore(result.report || result.assessment) 
+    }));
+
+    // Create worksheet
+    const ws = XLSX.utils.json_to_sheet(reportData);
+
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Assessment Results");
+
+    // Generate Excel file and trigger download
+    XLSX.writeFile(wb, `${assessmentName || 'assessment'}-report.xlsx`);
   };
 
   return (
-    <motion.div 
+    <div 
       className="wizard-container"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
+      // Removed motion props
     >
       <div className="wizard-header">
         <h2>Create New Assessment</h2>
@@ -146,13 +156,10 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
       <div className="wizard-content">
         <AnimatePresence mode="wait">
           {currentStep === 0 && (
-            <motion.div 
+            <div 
               key="step1"
               className="wizard-step"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
+              // Removed motion props
             >
               <div className="form-group">
                 <label>Assessment Name</label>
@@ -185,17 +192,14 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
                   className="input-area"
                 />
               </div>
-            </motion.div>
+            </div>
           )}
 
           {currentStep === 1 && (
-            <motion.div 
+            <div 
               key="step2"
               className="wizard-step"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
+              // Removed motion props
             >
               <div className="rubric-preview">
                 <h3>Assessment Rubric</h3>
@@ -214,17 +218,14 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
                   CSV should contain student names and GitHub repository URLs
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {currentStep === 2 && (
-            <motion.div 
+            <div 
               key="step3"
               className="wizard-step"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
+              // Removed motion props
             >
               <div className="results-header">
                 <h3>Assessment Results</h3>
@@ -243,12 +244,10 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
               
               <div className="results-list">
                 {results.map((result, index) => (
-                  <motion.div 
+                  <div 
                     key={index}
                     className="result-card"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
+                    // Removed motion props
                   >
                     <div className="result-header">
                       <h4>{result.name}</h4>
@@ -261,10 +260,10 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
                         __html: window.marked ? window.marked.parse(result.report || result.assessment) : (result.report || result.assessment) 
                       }} />
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
-            </motion.div>
+            </div>
           )}
         </AnimatePresence>
       </div>
@@ -296,7 +295,7 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
           )}
         </button>
       </div>
-    </motion.div>
+    </div>
   );
 };
 
