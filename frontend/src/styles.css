@@ -611,7 +611,58 @@ button:disabled {
 }
 
 /* Responsive Design - Mobile First Approach */
-/* Base styles are for mobile, then we scale up */
+/* Styles for very small screens (under 576px) */
+@media (max-width: 576px) {
+  html {
+    font-size: 14px; /* Slightly smaller base font size for mobile */
+  }
+
+  body {
+    overflow-y: auto; /* Allow vertical scrolling on mobile */
+  }
+
+  .app-container {
+    padding: 0;
+    height: 100%;
+    min-height: 100vh;
+  }
+
+  /* Adjust heading sizes for mobile */
+  h1 { font-size: var(--text-3xl); }
+  h2 { font-size: var(--text-2xl); }
+  h3 { font-size: var(--text-xl); }
+  h4 { font-size: var(--text-lg); }
+  h5 { font-size: var(--text-base); }
+  h6 { font-size: var(--text-sm); }
+
+  /* Adjust button sizes */
+  .btn-primary,
+  .btn-secondary,
+  .btn-outline {
+    padding: 0.5rem 1rem;
+    font-size: var(--text-sm);
+  }
+
+  /* Adjust spacing */
+  .container {
+    padding: 0 var(--space-sm);
+  }
+
+  /* Adjust form elements */
+  .input-field,
+  .input-area {
+    padding: var(--space-sm);
+    font-size: var(--text-sm);
+  }
+
+  /* Adjust dark mode toggle position */
+  .dark-mode-toggle {
+    bottom: var(--space-md);
+    right: var(--space-md);
+    width: 40px;
+    height: 40px;
+  }
+}
 
 /* Small devices (landscape phones, 576px and up) */
 @media (min-width: 576px) {

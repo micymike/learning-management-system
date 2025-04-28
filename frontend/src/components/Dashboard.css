@@ -313,10 +313,81 @@
 }
 
 /* Responsive Design - Mobile First Approach */
+/* Styles for very small screens */
+@media (max-width: 576px) {
+  .dashboard-container {
+    padding: var(--space-md);
+  }
+
+  .dashboard-header {
+    margin-bottom: var(--space-lg);
+    justify-content: center;
+    gap: var(--space-md);
+  }
+
+  .dashboard-header h1 {
+    font-size: var(--text-2xl);
+    text-align: center;
+    width: 100%;
+  }
+
+  .dashboard-header h1::after {
+    width: 60px;
+  }
+
+  .new-assessment-btn {
+    width: 100%;
+    font-size: var(--text-base);
+    padding: var(--space-sm) var(--space-md);
+    justify-content: center;
+  }
+
+  .empty-state {
+    padding: var(--space-lg);
+  }
+
+  .empty-state h2 {
+    font-size: var(--text-xl);
+  }
+
+  .empty-state p {
+    font-size: var(--text-base);
+  }
+
+  .assessment-card {
+    padding: var(--space-md);
+  }
+
+  .assessment-card-header h3 {
+    font-size: var(--text-lg);
+  }
+
+  .assessment-stats {
+    gap: var(--space-md);
+  }
+
+  .stat-value {
+    font-size: var(--text-2xl);
+  }
+
+  .stat-label {
+    font-size: var(--text-xs);
+  }
+
+  .view-details {
+    font-size: var(--text-sm);
+    padding-top: var(--space-md);
+  }
+}
+
 /* Small devices (landscape phones, 576px and up) */
 @media (min-width: 576px) {
   .assessments-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dashboard-container {
+    padding: var(--space-lg);
   }
 }
 

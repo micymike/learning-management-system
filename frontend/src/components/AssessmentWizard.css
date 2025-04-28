@@ -6,7 +6,7 @@
   max-width: 800px;
   height: 90vh; /* Take up most of the viewport height */
   margin: 2vh auto;
-  overflow: hidden;
+  overflow: auto;
   position: relative;
   border: 1px solid var(--border-color);
   display: flex;
@@ -130,7 +130,7 @@
 .wizard-content {
   padding: var(--space-xl) var(--space-xxl);
   flex: 1;
-  overflow: hidden;
+  overflow: auto;
   display: flex;
 }
 
@@ -140,7 +140,7 @@
   gap: var(--space-lg);
   width: 100%;
   height: 100%;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .form-group {
@@ -195,7 +195,7 @@
   transition: all var(--transition-normal);
   text-align: center;
   position: relative;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .input-file:hover {
@@ -235,7 +235,7 @@
   margin-bottom: var(--space-lg);
   border-left: 4px solid var(--primary-color);
   position: relative;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .rubric-preview::after {
@@ -325,7 +325,7 @@
   box-shadow: var(--shadow-primary);
   min-width: 120px;
   position: relative;
-  overflow: hidden;
+  overflow: auto;
   z-index: 1;
 }
 
@@ -439,7 +439,7 @@
   transition: all var(--transition-normal);
   box-shadow: var(--shadow-primary);
   position: relative;
-  overflow: hidden;
+  overflow: auto;
   z-index: 1;
 }
 
@@ -505,7 +505,7 @@
   transition: all var(--transition-normal);
   border-left: 4px solid var(--primary-color);
   position: relative;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .result-card::after {
@@ -620,7 +620,76 @@
 }
 
 /* Responsive Design - Mobile First Approach */
-/* Base styles are for mobile */
+/* Base styles are for mobile (adjustments below) */
+
+/* Styles for very small screens (e.g., 320px width) */
+@media (max-width: 576px) {
+  .wizard-container {
+    height: 100vh; /* Use full height */
+    margin: 0; /* Remove margin */
+    border-radius: 0; /* Remove border radius */
+    border: none; /* Remove border */
+  }
+
+  .wizard-header {
+    padding: var(--space-md);
+  }
+
+  .wizard-header h2 {
+    font-size: var(--text-xl);
+  }
+
+  .wizard-progress {
+    padding: var(--space-md) var(--space-sm); /* Reduce padding */
+  }
+
+  .step-number {
+    width: 30px; /* Make smaller */
+    height: 30px;
+    font-size: var(--text-base);
+    margin-bottom: var(--space-sm);
+  }
+
+  .step-label {
+    font-size: var(--text-xs); /* Make smaller */
+  }
+
+  .wizard-content {
+    padding: var(--space-md); /* Reduce padding */
+  }
+
+  .wizard-actions {
+    padding: var(--space-md); /* Reduce padding */
+  }
+
+  .back-btn, .next-btn {
+    padding: var(--space-sm) var(--space-md); /* Reduce button padding */
+    font-size: var(--text-sm);
+  }
+
+  .results-header {
+    padding: var(--space-sm) 0;
+    margin-bottom: var(--space-sm);
+  }
+
+  .results-header h3 {
+    font-size: var(--text-lg);
+  }
+
+  .results-actions {
+    gap: var(--space-sm);
+  }
+
+  .download-btn, .finish-btn {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--text-xs);
+  }
+
+  .results-list {
+    padding-right: var(--space-sm);
+  }
+}
+
 
 /* Small devices (landscape phones, 576px and up) */
 @media (min-width: 576px) {
