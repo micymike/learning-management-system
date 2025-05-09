@@ -9,3 +9,5 @@ openai
 requests
 uvicorn
 pinecone
+flask-sqlalchemy
+flask-migrate
