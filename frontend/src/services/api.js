@@ -224,6 +224,20 @@ export const assessApi = {
           reader.onerror = () => reject(new Error('Error reading CSV file'));
           reader.readAsText(file);
         });
+
+        // Get rubric content based on type
+        const rubricContent = await new Promise((resolve, reject) => {
+          if (rubric instanceof File) {
+            const reader = new FileReader();
+            reader.onload = (event) => resolve(event.target.result);
+            reader.onerror = () => reject(new Error('Error reading rubric file'));
+            reader.readAsText(rubric);
+          } else if (typeof rubric === 'string') {
+            resolve(rubric);
+          } else {
+            resolve("Code Quality\nFunctionality\nBest Practices");
+          }
+        });
         
         // Parse CSV content (simple parser)
         const lines = csvContent.split('\n').filter(line => line.trim());
@@ -243,7 +257,7 @@ export const assessApi = {
         }
         
         // Parse the rubric into criteria
-        const rubricLines = rubric.split('\n').filter(line => line.trim());
+        const rubricLines = rubricContent.split('\n').filter(line => line.trim());
         if (rubricLines.length === 0) {
           throw new Error('Rubric cannot be empty');
         }
@@ -302,7 +316,7 @@ export const assessApi = {
             : 'Assessment ' + new Date().toLocaleDateString(),
           createdAt: new Date().toISOString(),
           status: 'Pending Assessment',
-          rubric: rubric,
+          rubric: rubricContent,
           results: results
         };
         
