@@ -220,6 +220,7 @@ def upload_csv():
     
     # Process each student
     results = []
+    student_assessments = []  # Store assessments to be added later
     for student in students:
         name = student['name']
         repo_url = student['repo_url']
@@ -279,15 +280,13 @@ def upload_csv():
                     except (ValueError, TypeError):
                         continue
         
-        # Create student assessment record
-        student_assessment = StudentAssessment(
-            student_id=student_record.id,
-            assessment_id=None,  # Will be set after assessment is saved
-            scores=scores,
-            repo_url=repo_url,
-            submission=code_str
-        )
-        db.session.add(student_assessment)
+        # Store student assessment for later
+        student_assessments.append({
+            "student_id": student_record.id,
+            "scores": scores,
+            "repo_url": repo_url,
+            "submission": code_str
+        })
         
         results.append({
             "name": name,
@@ -300,7 +299,7 @@ def upload_csv():
     
     # Save to database
     try:
-        # Create a new assessment record
+        # Create a new assessment record first
         new_assessment = Assessment(
             name=assessment_name,
             rubric=rubric,
@@ -309,9 +308,15 @@ def upload_csv():
         db.session.add(new_assessment)
         db.session.flush()  # Get ID without committing
         
-        # Update student assessments with assessment ID
-        for student_assessment in StudentAssessment.query.filter_by(assessment_id=None).all():
-            student_assessment.assessment_id = new_assessment.id
+        # Now create student assessment records with the assessment ID
+        for student_data in student_assessments:
+            student_assessment = StudentAssessment(
+                student_id=student_data["student_id"],
+                assessment_id=new_assessment.id,  # Now we have the ID
+                scores=student_data["scores"],
+                repo_url=student_data["repo_url"],
+                submission=student_data["submission"]
+            )
             db.session.add(student_assessment)
         
         db.session.commit()
