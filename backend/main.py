@@ -34,7 +34,11 @@ Session(app)
 # Configure CORS with session support
 CORS(app, supports_credentials=True, resources={
     r"/*": {
-        "origins": ["http://localhost:5173", "https://codeanalyzer-bc.onrender.com"],
+        "origins": [
+            "http://localhost:5173",
+            "https://codeanalyzer-bc.onrender.com",
+            "https://directed-codeanalyzer.onrender.com"
+        ],
         "methods": ["GET", "POST"],
         "allow_headers": ["Content-Type"],
         "expose_headers": ["Content-Type"],
