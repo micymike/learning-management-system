@@ -1,144 +1,103 @@
 import React, { useState, useEffect } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import { AnimatePresence } from "framer-motion";
 import Dashboard from "./components/Dashboard";
 import AssessmentWizard from "./components/AssessmentWizard";
 import AssessmentDetails from "./components/AssessmentDetails";
-import './styles.css';
+import Sidebar from "./components/Sidebar";
+import './index.css';
 
-function App() {
-  const [view, setView] = useState("dashboard");
-  const [selectedAssessment, setSelectedAssessment] = useState(null);
+function AppWrapper() {
   const [darkMode, setDarkMode] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  // Check for user's preferred color scheme on initial load
+  // Check for user's preferred color scheme
   useEffect(() => {
     const prefersDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     setDarkMode(prefersDarkMode);
-    
-    // Apply dark mode class if needed
-    if (prefersDarkMode) {
-      document.body.classList.add('dark-mode');
-    }
   }, []);
 
   // Toggle dark mode
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
-    if (!darkMode) {
-      document.body.classList.add('dark-mode');
-    } else {
-      document.body.classList.remove('dark-mode');
-    }
-  };
-
-  const handleNewAssessment = () => {
-    setView("wizard");
-  };
-
-  const handleWizardComplete = (results) => {
-    setView("dashboard");
-  };
-
-  const handleViewAssessment = (assessment) => {
-    setSelectedAssessment(assessment);
-    setView("details");
-  };
-
-  const handleBackToDashboard = () => {
-    setView("dashboard");
-    setSelectedAssessment(null);
-  };
-
-  // Page transition variants
-  const pageTransition = {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: -20 },
-    transition: { duration: 0.3 }
   };
 
   return (
-    <div className="app-container">
-      <AnimatePresence mode="wait">
-        {view === "dashboard" && (
-          <motion.div
-            key="dashboard"
-            initial={pageTransition.initial}
-            animate={pageTransition.animate}
-            exit={pageTransition.exit}
-            transition={pageTransition.transition}
-            className="page-container"
+    <div className={`bg-${darkMode ? 'black' : 'white'} min-h-screen`}>
+      <div className="flex">
+        <Sidebar />
+        <div className="flex-1">
+          <AnimatePresence mode="wait">
+            <Routes location={location} key={location.pathname}>
+              <Route 
+                path="/" 
+                element={
+                  <div className="page-transition">
+                    <Dashboard onNewAssessment={() => navigate('/assessments/new')} onViewAssessment={(assessment) => navigate(`/assessments/${assessment.id}`)} />
+                  </div>
+                } 
+              />
+              <Route 
+                path="/assessments" 
+                element={
+                  <div className="page-transition">
+                    <Dashboard 
+                      activeView="assessments"
+                      onNewAssessment={() => navigate('/assessments/new')} 
+                      onViewAssessment={(assessment) => navigate(`/assessments/${assessment.id}`)} 
+                    />
+                  </div>
+                } 
+              />
+              <Route 
+                path="/assessments/new" 
+                element={
+                  <div className="page-transition">
+                    <AssessmentWizard onComplete={() => navigate('/')} onCancel={() => navigate('/')} />
+                  </div>
+                } 
+              />
+              <Route 
+                path="/assessments/:id" 
+                element={
+                  <div className="page-transition">
+                    <AssessmentDetails onBack={() => navigate('/')} />
+                  </div>
+                } 
+              />
+            </Routes>
+          </AnimatePresence>
+          {/* Dark Mode Toggle - using Tailwind classes */}
+          <button 
+            className="fixed bottom-6 right-6 p-3 bg-green-600 text-white rounded-full shadow-lg hover:bg-green-700 transition-colors focus:outline-none"
+            onClick={toggleDarkMode}
+            aria-label="Toggle dark mode"
           >
-            <Dashboard 
-              onNewAssessment={handleNewAssessment} 
-              onViewAssessment={handleViewAssessment}
-            />
-          </motion.div>
-        )}
+            {darkMode ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+              </svg>
+            )}
+          </button>
 
-        {view === "wizard" && (
-          <motion.div
-            key="wizard"
-            initial={pageTransition.initial}
-            animate={pageTransition.animate}
-            exit={pageTransition.exit}
-            transition={pageTransition.transition}
-            className="page-container"
-          >
-            <AssessmentWizard 
-              onComplete={handleWizardComplete} 
-              onCancel={handleBackToDashboard}
-            />
-          </motion.div>
-        )}
-
-        {view === "details" && selectedAssessment && (
-          <motion.div
-            key="details"
-            initial={pageTransition.initial}
-            animate={pageTransition.animate}
-            exit={pageTransition.exit}
-            transition={pageTransition.transition}
-            className="page-container"
-          >
-            <AssessmentDetails 
-              assessment={selectedAssessment} 
-              onBack={handleBackToDashboard}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Dark Mode Toggle */}
-      <motion.button 
-        className="dark-mode-toggle"
-        onClick={toggleDarkMode}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        aria-label="Toggle dark mode"
-      >
-        {darkMode ? (
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="5"></circle>
-            <line x1="12" y1="1" x2="12" y2="3"></line>
-            <line x1="12" y1="21" x2="12" y2="23"></line>
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-            <line x1="1" y1="12" x2="3" y2="12"></line>
-            <line x1="21" y1="12" x2="23" y2="12"></line>
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-          </svg>
-        ) : (
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-          </svg>
-        )}
-      </motion.button>
-
-      {/* App Version */}
-      <div className="app-version">v1.0.0</div>
+          {/* App Version */}
+          <div className="fixed bottom-4 left-4 text-xs text-gray-500">v1.0.0</div>
+        </div>
+      </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AppWrapper />
+    </Router>
   );
 }
 

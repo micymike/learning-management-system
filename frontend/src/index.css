@@ -1,1 +1,5 @@
 /* This file is intentionally left empty as styles are now managed in styles.css */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

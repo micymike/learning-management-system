@@ -1,9 +1,12 @@
 .qodo
 .env
-sample_students.csv
-sample_rubric.txt
+flask_session
+instance
 scores.csv
 __pycache__
+venv
+sample_rubric.txt
+sample_student.csv 
 .venv
 backend/venv
 frontend/node_modules

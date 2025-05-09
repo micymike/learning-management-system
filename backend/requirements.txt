@@ -1,5 +1,6 @@
 flask
 flask-cors
+flask-session
 pandas
 odfpy
 openpyxl
@@ -7,3 +8,4 @@ python-dotenv
 openai
 requests
 uvicorn
+pinecone

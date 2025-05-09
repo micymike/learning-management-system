@@ -1,6 +1,6 @@
 .report-container {
   margin: 2.5rem auto;
-  max-width: 800px;
+  max-width: 1000px;
 }
 
 .report-card {
@@ -24,4 +24,140 @@
   letter-spacing: 0.01em;
   word-break: break-word;
   white-space: pre-line;
+}
+
+.scores-section {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px 0 rgba(41, 171, 135, 0.10);
+  margin-bottom: 2.2rem;
+  padding: 2rem 2.2rem;
+  border: 2px solid #29AB87;
+}
+
+.scores-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.scores-header h2 {
+  margin: 0;
+  color: #1d3c34;
+  font-size: 1.5rem;
+}
+
+.scores-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.action-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: white;
+}
+
+.action-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.action-button i {
+  font-size: 1rem;
+}
+
+.download-button {
+  background-color: #29AB87;
+}
+
+.download-button:hover:not(:disabled) {
+  background-color: #238e72;
+}
+
+.delete-button {
+  background-color: #dc3545;
+}
+
+.delete-button:hover:not(:disabled) {
+  background-color: #c82333;
+}
+
+.clear-button {
+  background-color: #6c757d;
+}
+
+.clear-button:hover:not(:disabled) {
+  background-color: #5a6268;
+}
+
+.scores-table-container {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.scores-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+  background-color: white;
+}
+
+.scores-table th,
+.scores-table td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.scores-table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  color: #1d3c34;
+}
+
+.scores-table tr:hover {
+  background-color: #f8f9fa;
+}
+
+.scores-table tr.selected {
+  background-color: rgba(41, 171, 135, 0.1);
+}
+
+.scores-table input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.delete-icon {
+  background: none;
+  border: none;
+  color: #dc3545;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.delete-icon:hover:not(:disabled) {
+  background-color: rgba(220, 53, 69, 0.1);
+}
+
+.delete-icon:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.delete-icon i {
+  font-size: 1.1rem;
 }

@@ -27,10 +27,21 @@
   cursor: pointer;
   transition: background 0.2s, transform 0.2s;
   box-shadow: 0 2px 12px 0 rgba(41, 171, 135, 0.13);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
+
 .jungle-btn:hover {
   background: #218c6a;
   transform: translateY(-2px) scale(1.04);
+}
+
+.jungle-btn:disabled {
+  background: #a0a0a0;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .input-file, .input-field, .input-area {
@@ -41,7 +52,9 @@
   border-radius: 8px;
   font-size: 1rem;
   transition: border 0.2s;
+  color: #1d3c34;
 }
+
 .input-file:focus, .input-field:focus, .input-area:focus {
   border: 2px solid #218c6a;
   outline: none;
@@ -52,6 +65,34 @@
   margin-top: 0.7rem;
   font-size: 0.98rem;
   font-weight: 500;
+  background: rgba(211, 47, 47, 0.1);
+  padding: 0.8rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.file-info {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .rubric-box {
