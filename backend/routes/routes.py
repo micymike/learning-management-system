@@ -15,7 +15,7 @@ from csv_analyzer import process_csv
 from rubric_handler import load_rubric
 import openai
 from dotenv import load_dotenv
-from models import db, Assessment
+from models import db, Assessment, Student, StudentAssessment
 
 load_dotenv()
 
@@ -224,6 +224,13 @@ def upload_csv():
         name = student['name']
         repo_url = student['repo_url']
         
+        # Find or create student record
+        student_record = Student.query.filter_by(name=name).first()
+        if not student_record:
+            student_record = Student(name=name)
+            db.session.add(student_record)
+            db.session.flush()  # Get ID without committing
+        
         # Analyze the repo and get code
         try:
             code_str = analyze_github_repo(repo_url)
@@ -272,6 +279,16 @@ def upload_csv():
                     except (ValueError, TypeError):
                         continue
         
+        # Create student assessment record
+        student_assessment = StudentAssessment(
+            student_id=student_record.id,
+            assessment_id=None,  # Will be set after assessment is saved
+            scores=scores,
+            repo_url=repo_url,
+            submission=code_str
+        )
+        db.session.add(student_assessment)
+        
         results.append({
             "name": name,
             "repo_url": repo_url,
@@ -290,6 +307,13 @@ def upload_csv():
             results=results
         )
         db.session.add(new_assessment)
+        db.session.flush()  # Get ID without committing
+        
+        # Update student assessments with assessment ID
+        for student_assessment in StudentAssessment.query.filter_by(assessment_id=None).all():
+            student_assessment.assessment_id = new_assessment.id
+            db.session.add(student_assessment)
+        
         db.session.commit()
         
         return jsonify({
@@ -405,3 +429,55 @@ def upload_github_url():
         return jsonify({"success": True, "code": code})
     except Exception as e:
         return jsonify({"error": f"Error analyzing GitHub repository: {str(e)}"}), 400
+
+# Analytics endpoint
+@routes_blueprint.route("/analytics", methods=["GET"])
+def get_analytics():
+    """Get aggregate analytics: total students, total assessments, average score."""
+    try:
+        total_students = Student.query.count()
+        total_assessments = Assessment.query.count()
+        # Calculate average score across all student assessments
+        avg_score = None
+        total_scores = 0
+        score_count = 0
+        student_assessments = StudentAssessment.query.all()
+        for sa in student_assessments:
+            if sa.score is not None:
+                total_scores += sa.score
+                score_count += 1
+        if score_count > 0:
+            avg_score = round(total_scores / score_count, 2)
+        return jsonify({
+            "success": True,
+            "total_students": total_students,
+            "total_assessments": total_assessments,
+            "average_score": avg_score
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# Student routes
+@routes_blueprint.route("/students", methods=["GET"])
+def get_students():
+    """Get all students with their assessment counts"""
+    try:
+        students = Student.query.all()
+        return jsonify({
+            "success": True,
+            "students": [student.to_dict() for student in students]
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@routes_blueprint.route("/students/<int:student_id>", methods=["GET"])
+def get_student(student_id):
+    """Get a specific student with their assessment history"""
+    try:
+        student = Student.query.get_or_404(student_id)
+        return jsonify({
+            "success": True,
+            "student": student.to_dict_with_assessments()
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

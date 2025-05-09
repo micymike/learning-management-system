@@ -372,8 +372,54 @@ export const assessApi = {
       body: formData,
     });
   },
+
+  // Student-related methods
+  getStudents: async () => {
+    try {
+      const response = await fetchWithErrorHandling(`${API_URL}/students`, {
+        method: 'GET',
+        credentials: 'include'
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch students:', error);
+      throw error;
+    }
+  },
+  
+  getStudent: async (studentId) => {
+    try {
+      const response = await fetchWithErrorHandling(`${API_URL}/students/${studentId}`, {
+        method: 'GET',
+        credentials: 'include'
+      });
+      
+      return response;
+    } catch (error) {
+      console.error(`Failed to fetch student ${studentId}:`, error);
+      throw error;
+    }
+  },
+
+  // Analytics
+  getAnalytics: async () => {
+    try {
+      const response = await fetchWithErrorHandling(`${API_URL}/analytics`, {
+        method: 'GET',
+        credentials: 'include'
+      });
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch analytics:', error);
+      throw error;
+    }
+  },
 };
 
 export default {
-  assess: assessApi,
+  ...assessApi,
+  getStudents: assessApi.getStudents,
+  getStudent: assessApi.getStudent,
+  getAnalytics: assessApi.getAnalytics,
 };

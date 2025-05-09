@@ -84,7 +84,7 @@ const AssessmentDetails = () => {
         <div className="text-red-500 text-xl mb-4">{error}</div>
         <button 
           onClick={handleBackClick}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          className="px-4 py-2 bg-blue-500 text-gray-700 rounded hover:bg-blue-600"
         >
           Back to Dashboard
         </button>
@@ -98,7 +98,7 @@ const AssessmentDetails = () => {
         <div className="text-xl mb-4">Assessment not found</div>
         <button 
           onClick={handleBackClick}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          className="px-4 py-2 bg-blue-500 text-gray-700 rounded hover:bg-blue-600"
         >
           Back to Dashboard
         </button>
@@ -141,7 +141,7 @@ const AssessmentDetails = () => {
   });
 
   return (
-    <div className="container mx-auto px-4 py-8 bg-white">
+    <div className="container mx-auto px-4 py-8 bg-gray-100">
       <div className="flex justify-between items-center mb-6">
         <button 
           onClick={handleBackClick}
@@ -154,7 +154,7 @@ const AssessmentDetails = () => {
         </button>
         <button 
           onClick={handleDownloadExcel}
-          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 flex items-center"
+          className="px-4 py-2 bg-green-500 text-gray-700 rounded hover:bg-green-600 flex items-center"
         >
           <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
