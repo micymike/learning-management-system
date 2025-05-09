@@ -442,17 +442,27 @@ def get_analytics():
     try:
         total_students = Student.query.count()
         total_assessments = Assessment.query.count()
+        
         # Calculate average score across all student assessments
         avg_score = None
         total_scores = 0
         score_count = 0
         student_assessments = StudentAssessment.query.all()
+        
         for sa in student_assessments:
-            if sa.score is not None:
-                total_scores += sa.score
-                score_count += 1
+            if sa.scores:  # Check if scores dictionary exists
+                # Calculate average of all scores for this assessment
+                assessment_scores = [
+                    score for score in sa.scores.values() 
+                    if isinstance(score, (int, float))
+                ]
+                if assessment_scores:
+                    total_scores += sum(assessment_scores) / len(assessment_scores)
+                    score_count += 1
+        
         if score_count > 0:
             avg_score = round(total_scores / score_count, 2)
+            
         return jsonify({
             "success": True,
             "total_students": total_students,
@@ -460,6 +470,7 @@ def get_analytics():
             "average_score": avg_score
         })
     except Exception as e:
+        print(f"Analytics error: {str(e)}")  # Add logging for debugging
         return jsonify({"success": False, "error": str(e)}), 500
 
 # Student routes
