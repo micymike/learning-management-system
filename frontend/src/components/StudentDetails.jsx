@@ -35,6 +35,48 @@ const StudentDetails = () => {
     navigate('/students');
   };
 
+  // Helper function to format score
+  const formatScore = (score) => {
+    if (typeof score === 'object' && score !== null) {
+      if (score.mark) {
+        return score.mark; // Return the mark from structured score
+      }
+      return 'N/A'; // Invalid object format
+    }
+    if (typeof score === 'number') {
+      return `${score}/5`; // Legacy format
+    }
+    return 'N/A'; // Fallback
+  };
+
+  // Helper function to extract numeric value for calculations
+  const getNumericValue = (score) => {
+    if (typeof score === 'number') {
+      return score;
+    }
+    
+    if (typeof score === 'object' && score !== null && score.mark) {
+      const mark = score.mark;
+      // Try to extract numeric values from mark ranges like "4 - 8 Marks"
+      if (typeof mark === 'string') {
+        // Check for ranges like "4 - 8 Marks"
+        const rangeMatch = mark.match(/(\d+)\s*-\s*(\d+)/);
+        if (rangeMatch) {
+          // Use the average of the range
+          return (parseInt(rangeMatch[1]) + parseInt(rangeMatch[2])) / 2;
+        }
+        
+        // Check for single values like "0 (No Mark)"
+        const singleMatch = mark.match(/(\d+)/);
+        if (singleMatch) {
+          return parseInt(singleMatch[1]);
+        }
+      }
+    }
+    
+    return 0; // Default if we can't extract a numeric value
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -92,10 +134,12 @@ const StudentDetails = () => {
   // Calculate progress over time for each criterion
   const progressData = criteriaList.map(criterion => {
     const scores = sortedAssessments
-      .filter(a => a.scores && a.scores[criterion] !== undefined)
+      .filter(a => a.scores && (typeof a.scores[criterion] === 'number' || 
+                               (typeof a.scores[criterion] === 'object' && a.scores[criterion] !== null)))
       .map(a => ({
         assessment_name: a.assessment_name,
         score: a.scores[criterion],
+        numeric_value: getNumericValue(a.scores[criterion]),
         date: new Date(a.created_at)
       }))
       .sort((a, b) => a.date - b.date); // Sort by date ascending for progress view
@@ -192,7 +236,7 @@ const StudentDetails = () => {
                   <h3 className="text-sm font-medium text-gray-500 uppercase">Latest Score</h3>
                   <p className="mt-1 text-3xl font-semibold text-gray-900">
                     {sortedAssessments.length > 0 
-                      ? `${Math.round(sortedAssessments[0].average_score * 100) / 100}/5` 
+                      ? formatScore(sortedAssessments[0].average_score) 
                       : 'N/A'}
                   </p>
                 </div>
@@ -213,7 +257,7 @@ const StudentDetails = () => {
                     {Object.entries(sortedAssessments[0].scores || {}).map(([criterion, score]) => (
                       <div key={criterion} className="flex justify-between p-3 border-b last:border-b-0">
                         <span className="font-medium">{criterion}</span>
-                        <span className="text-gray-700">{score}/5</span>
+                        <span className="text-gray-700">{formatScore(score)}</span>
                       </div>
                     ))}
                   </div>
@@ -258,7 +302,7 @@ const StudentDetails = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{Math.round(assessment.average_score * 100) / 100}/5</div>
+                            <div className="text-sm text-gray-900">{formatScore(assessment.average_score)}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button 
@@ -317,7 +361,7 @@ const StudentDetails = () => {
                                       }`}
                                     ></div>
                                     <div className="mt-1 text-xs font-medium">
-                                      {score.score}/5
+                                      {formatScore(score.score)}
                                     </div>
                                     <div className="text-xs text-gray-500">
                                       {new Date(score.date).toLocaleDateString()}
@@ -334,10 +378,10 @@ const StudentDetails = () => {
                             
                             <div className="mt-2">
                               <p className="text-sm">
-                                {scores[scores.length - 1].score > scores[0].score
-                                  ? `Improved by ${scores[scores.length - 1].score - scores[0].score} points`
-                                  : scores[scores.length - 1].score < scores[0].score
-                                    ? `Decreased by ${scores[0].score - scores[scores.length - 1].score} points`
+                                {scores[scores.length - 1].numeric_value > scores[0].numeric_value
+                                  ? `Improved by ${(scores[scores.length - 1].numeric_value - scores[0].numeric_value).toFixed(1)} points`
+                                  : scores[scores.length - 1].numeric_value < scores[0].numeric_value
+                                    ? `Decreased by ${(scores[0].numeric_value - scores[scores.length - 1].numeric_value).toFixed(1)} points`
                                     : 'No change in score'}
                               </p>
                             </div>

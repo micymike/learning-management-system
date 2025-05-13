@@ -55,8 +55,8 @@ def assess_code(code, rubric, client):
 You are an expert code analyzer with deep knowledge of software engineering principles, design patterns, and best practices.
 Your task is to perform a thorough analysis of the provided code based EXACTLY on the rubric provided.
 
-The rubric may be in a tabular format with specific mark ranges and criteria descriptions.
-You must analyze the code according to the EXACT criteria in the rubric, not any predefined criteria.
+The rubric may be in any format - it could have specific mark ranges, percentages, letter grades, or descriptive categories.
+You must analyze the code according to the EXACT criteria in the rubric, regardless of its format.
 
 Provide a detailed analysis that will be used as input for a subsequent scoring process.
 """
@@ -89,22 +89,32 @@ Provide a detailed analysis of the code's strengths and weaknesses relative to E
         scoring_system_prompt = """
 You are a strict code assessor. Your task is to evaluate code based STRICTLY on the given rubric and a detailed code analysis.
 
-IMPORTANT: The rubric may have specific mark ranges (e.g., 0, 1-3, 4-8, 10-12) and detailed descriptions for each level.
-You MUST use the EXACT scoring system from the rubric, not a generic 1-5 scale.
+IMPORTANT: The rubric could be in ANY format. It might have:
+- Specific mark ranges (e.g., 0-10, 1-5, etc.)
+- Letter grades (A, B, C, etc.)
+- Descriptive categories (Excellent, Good, Satisfactory, etc.)
+- Percentage ranges (90-100%, 80-89%, etc.)
+- Or any other scoring system
+
+You MUST:
+1. Identify the format of the rubric
+2. Use EXACTLY the same format and terminology found in the rubric
+3. Do not invent or add scoring systems that aren't in the rubric
+4. Match your assessment to the specific descriptions and criteria in the rubric
 
 For each criterion in the rubric:
-1. Determine which mark range/category the code falls into based on the descriptions
-2. Assign the appropriate mark or mark range
+1. Determine which category or score range the code falls into based on the descriptions
+2. Assign the appropriate mark, grade, or category EXACTLY as it appears in the rubric
 3. Provide a brief justification for your assessment
 
 Your response should include:
-1. The criterion name
-2. The mark or mark range assigned (exactly as specified in the rubric)
+1. The criterion name (exactly as it appears in the rubric)
+2. The mark, grade, or category (exactly as specified in the rubric)
 3. A brief justification
 
-Example format:
-Criterion: [Name of criterion]
-Mark: [Mark or mark range as specified in the rubric]
+Example format (adapt based on the actual rubric format):
+Criterion: [Name of criterion from rubric]
+Mark: [Score/grade/category exactly as it appears in the rubric]
 Justification: [Brief explanation]
 """
 
@@ -115,8 +125,8 @@ Rubric to use for assessment:
 Detailed code analysis:
 {code_analysis}
 
-Evaluate the code according to EACH criterion in the rubric, using the EXACT mark ranges and categories specified in the rubric.
-Return the assessment with marks and justifications for each criterion.
+Evaluate the code according to EACH criterion in the rubric, using the EXACT scoring system specified in the rubric.
+Return the assessment with marks/grades and justifications for each criterion.
 """
 
         scoring_response = client.chat.completions.create(

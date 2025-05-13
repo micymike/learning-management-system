@@ -66,7 +66,7 @@ const AssessmentDetails = () => {
 
   // Helper function to format score with max value (assuming scores are out of 5)
   const formatScore = (score) => {
-    if (typeof score === 'object' && score.mark) {
+    if (typeof score === 'object' && score.mark !== undefined) {
       return score.mark; // Return the mark directly from the structured format
     }
     if (typeof score !== 'number') return 'N/A';
@@ -75,29 +75,76 @@ const AssessmentDetails = () => {
 
   // Helper function to determine if a score is a structured score object
   const isStructuredScore = (score) => {
-    return typeof score === 'object' && score.mark !== undefined;
+    return typeof score === 'object' && score !== null && (score.mark !== undefined || score.justification !== undefined);
   };
 
   // Helper function to extract numeric value from mark range for calculations
   const getNumericValue = (score) => {
-    if (typeof score === 'number') return score;
+    if (typeof score === 'number') {
+      return score;
+    }
     
-    if (isStructuredScore(score)) {
+    if (typeof score === 'object' && score !== null && score.mark) {
       const mark = score.mark;
-      // Try to extract numeric values from mark ranges like "4 - 8 Marks"
-      if (typeof mark === 'string') {
-        // Check for ranges like "4 - 8 Marks"
-        const rangeMatch = mark.match(/(\d+)\s*-\s*(\d+)/);
-        if (rangeMatch) {
-          // Use the average of the range
-          return (parseInt(rangeMatch[1]) + parseInt(rangeMatch[2])) / 2;
-        }
-        
-        // Check for single values like "0 (No Mark)"
-        const singleMatch = mark.match(/(\d+)/);
-        if (singleMatch) {
-          return parseInt(singleMatch[1]);
-        }
+      
+      if (typeof mark !== 'string') return 0;
+      
+      const markLower = mark.toLowerCase();
+      
+      // Extract numeric values from various formats
+      
+      // Check for percentage ranges (e.g., "90-100%")
+      const percentRangeMatch = markLower.match(/(\d+)\s*-\s*(\d+)%/);
+      if (percentRangeMatch) {
+        const min = parseInt(percentRangeMatch[1]);
+        const max = parseInt(percentRangeMatch[2]);
+        return (min + max) / 2 / 20; // Convert to 0-5 scale (100% = 5)
+      }
+      
+      // Check for simple percentage (e.g., "90%")
+      const percentMatch = markLower.match(/(\d+)%/);
+      if (percentMatch) {
+        return parseInt(percentMatch[1]) / 20; // Convert to 0-5 scale
+      }
+      
+      // Check for ranges like "4-8 Marks"
+      const rangeMatch = markLower.match(/(\d+)\s*-\s*(\d+)/);
+      if (rangeMatch) {
+        const min = parseInt(rangeMatch[1]);
+        const max = parseInt(rangeMatch[2]);
+        return (min + max) / 2 / 2; // Normalize to 0-5 scale (assuming 10 is max)
+      }
+      
+      // Check for fractions like "4/5"
+      const fractionMatch = markLower.match(/(\d+)\/(\d+)/);
+      if (fractionMatch) {
+        const numerator = parseInt(fractionMatch[1]);
+        const denominator = parseInt(fractionMatch[2]);
+        return numerator * 5 / denominator; // Normalize to 0-5 scale
+      }
+      
+      // Check for letter grades
+      if (markLower.includes('a+') || markLower.includes('a grade')) return 5;
+      if (markLower.includes('a-') || markLower.includes('b+')) return 4.5;
+      if (markLower.includes('b')) return 4;
+      if (markLower.includes('b-') || markLower.includes('c+')) return 3.5;
+      if (markLower.includes('c')) return 3;
+      if (markLower.includes('c-') || markLower.includes('d+')) return 2.5;
+      if (markLower.includes('d')) return 2;
+      if (markLower.includes('d-')) return 1.5;
+      if (markLower.includes('f')) return 1;
+      
+      // Check for descriptive categories
+      if (markLower.includes('excellent')) return 5;
+      if (markLower.includes('good')) return 4;
+      if (markLower.includes('satisfactory')) return 3;
+      if (markLower.includes('needs improvement')) return 2;
+      if (markLower.includes('unsatisfactory')) return 1;
+      
+      // Check for single values like "0 (No Mark)"
+      const singleMatch = markLower.match(/(\d+)/);
+      if (singleMatch) {
+        return parseInt(singleMatch[1]) / 2; // Normalize to 0-5 scale (assuming 10 is max)
       }
     }
     
@@ -106,12 +153,72 @@ const AssessmentDetails = () => {
 
   // Helper function to determine status based on mark
   const getStatusFromMark = (mark) => {
-    if (typeof mark === 'string') {
-      if (mark.includes('Fully Correct') || mark.includes('10 - 12') || mark.includes('10-12')) return 'Excellent';
-      if (mark.includes('Mostly Correct') || mark.includes('4 - 8') || mark.includes('4-8')) return 'Good';
-      if (mark.includes('Partially Correct') || mark.includes('1 - 3') || mark.includes('1-3')) return 'Needs Improvement';
-      if (mark.includes('No Mark') || mark === '0') return 'Unsatisfactory';
+    if (typeof mark !== 'string') return 'Pending';
+    
+    // Convert to lowercase for case-insensitive matching
+    const markLower = mark.toLowerCase();
+    
+    // Check for excellent/high scores
+    if (markLower.includes('excellent') || 
+        markLower.includes('fully correct') || 
+        markLower.includes('10-12') || 
+        markLower.includes('90-100%') || 
+        markLower.includes('a+') || 
+        markLower.includes('a grade') ||
+        markLower.match(/\b[4-5]\/5\b/) ||
+        markLower.match(/\b[9]\/10\b/) ||
+        markLower.match(/\b10\/10\b/)) {
+      return 'Excellent';
     }
+    
+    // Check for good scores
+    if (markLower.includes('good') || 
+        markLower.includes('mostly correct') || 
+        markLower.includes('4-8') || 
+        markLower.includes('80-89%') || 
+        markLower.includes('b+') || 
+        markLower.includes('b grade') ||
+        markLower.match(/\b[3-4]\/5\b/) ||
+        markLower.match(/\b[7-8]\/10\b/)) {
+      return 'Good';
+    }
+    
+    // Check for satisfactory scores
+    if (markLower.includes('satisfactory') || 
+        markLower.includes('70-79%') || 
+        markLower.includes('c+') || 
+        markLower.includes('c grade') ||
+        markLower.match(/\b[2-3]\/5\b/) ||
+        markLower.match(/\b[5-6]\/10\b/)) {
+      return 'Satisfactory';
+    }
+    
+    // Check for needs improvement scores
+    if (markLower.includes('needs improvement') || 
+        markLower.includes('partially correct') || 
+        markLower.includes('1-3') || 
+        markLower.includes('60-69%') || 
+        markLower.includes('d+') || 
+        markLower.includes('d grade') ||
+        markLower.match(/\b[1-2]\/5\b/) ||
+        markLower.match(/\b[3-4]\/10\b/)) {
+      return 'Needs Improvement';
+    }
+    
+    // Check for unsatisfactory scores
+    if (markLower.includes('unsatisfactory') || 
+        markLower.includes('fail') || 
+        markLower.includes('incorrect') || 
+        markLower.includes('no mark') || 
+        markLower.includes('0-59%') || 
+        markLower.includes('f grade') ||
+        markLower.match(/\b[0-1]\/5\b/) ||
+        markLower.match(/\b[0-2]\/10\b/) ||
+        markLower === '0') {
+      return 'Unsatisfactory';
+    }
+    
+    // Default to pending if no match found
     return 'Pending';
   };
 
@@ -184,16 +291,17 @@ const AssessmentDetails = () => {
           
           if (mainCriterion && isStructuredScore(mainCriterion[1])) {
             // Use the main criterion's mark to determine status
-            const status = getStatusFromMark(mainCriterion[1].mark);
+            const mainStatus = getStatusFromMark(mainCriterion[1].mark);
             
-            if (status === 'Excellent') scoreRanges['Excellent (90-100%)']++;
-            else if (status === 'Good') scoreRanges['Good (80-89%)']++;
-            else if (status === 'Satisfactory') scoreRanges['Satisfactory (70-79%)']++;
-            else if (status === 'Needs Improvement') scoreRanges['Needs Improvement (60-69%)']++;
-            else if (status === 'Unsatisfactory') scoreRanges['Unsatisfactory (0-59%)']++;
+            if (mainStatus === 'Excellent') scoreRanges['Excellent (90-100%)']++;
+            else if (mainStatus === 'Good') scoreRanges['Good (80-89%)']++;
+            else if (mainStatus === 'Satisfactory') scoreRanges['Satisfactory (70-79%)']++;
+            else if (mainStatus === 'Needs Improvement') scoreRanges['Needs Improvement (60-69%)']++;
+            else if (mainStatus === 'Unsatisfactory') scoreRanges['Unsatisfactory (0-59%)']++;
             else scoreRanges['Pending']++;
             
-            return; // Skip the numeric calculation
+            // Skip the numeric calculation
+            return;
           }
         }
         
@@ -358,12 +466,10 @@ const AssessmentDetails = () => {
                           .map(entry => ({ criterion: entry[0], score: entry[1] }));
                         
                         if (criteriaScores.length > 0) {
-                          const avg = criteriaScores.reduce((sum, item) => sum + getNumericValue(item.score), 0) / criteriaScores.length;
-                          avgScore = avg.toFixed(1);
-                          
-                          // Determine status based on score or mark
-                          if (criteriaScores.some(item => isStructuredScore(item.score))) {
-                            // If we have structured scores, use the mark to determine status
+                          // Check if we have structured scores first
+                          const structuredScores = criteriaScores.filter(score => isStructuredScore(score));
+                          if (structuredScores.length > 0) {
+                            // Find the main criterion if it exists
                             let mainCriterion = null;
                             for (const [key, value] of Object.entries(student.scores)) {
                               if (key.toLowerCase().includes('correctness') || key.toLowerCase().includes('main')) {
@@ -373,23 +479,22 @@ const AssessmentDetails = () => {
                             }
                             
                             if (mainCriterion && isStructuredScore(mainCriterion[1])) {
+                              // Use the main criterion's mark to determine status
                               status = getStatusFromMark(mainCriterion[1].mark);
-                            } else {
-                              // Fall back to average score if no main criterion found
-                              if (avg >= 90) status = 'Excellent';
-                              else if (avg >= 80) status = 'Good';
-                              else if (avg >= 70) status = 'Satisfactory';
-                              else if (avg >= 60) status = 'Needs Improvement';
-                              else status = 'Unsatisfactory';
                             }
-                          } else {
-                            // Use numeric score for status
-                            if (avg >= 90) status = 'Excellent';
-                            else if (avg >= 80) status = 'Good';
-                            else if (avg >= 70) status = 'Satisfactory';
-                            else if (avg >= 60) status = 'Needs Improvement';
-                            else status = 'Unsatisfactory';
                           }
+                          
+                          // Fall back to numeric calculation if no structured main criterion
+                          const avg = criteriaScores.reduce((sum, item) => sum + getNumericValue(item.score), 0) / criteriaScores.length;
+                          
+                          avgScore = avg.toFixed(1);
+                          
+                          // Determine status based on score or mark
+                          if (avg >= 90) status = 'Excellent';
+                          else if (avg >= 80) status = 'Good';
+                          else if (avg >= 70) status = 'Satisfactory';
+                          else if (avg >= 60) status = 'Needs Improvement';
+                          else status = 'Unsatisfactory';
                         }
                       }
                       
