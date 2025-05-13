@@ -3,7 +3,7 @@ This file defines the routes for the application
 """
 from flask import Blueprint, request, jsonify, send_file, session
 from flask_cors import CORS
-from openpyxl.styles import PatternFill, Font
+from openpyxl.styles import PatternFill, Font, Alignment
 import io
 import pandas as pd
 import os
@@ -49,9 +49,18 @@ def format_scores_results(results):
             'Name': result['name'],
             'Repository': result['repo_url']
         }
-        # Add all criteria scores, using 0 for missing values
+        
+        # Add all criteria scores, properly formatting structured scores
         for criterion in criteria:
-            scores[criterion] = result.get('scores', {}).get(criterion, 0)
+            score_value = result.get('scores', {}).get(criterion, 0)
+            
+            # Check if this is a structured score with mark and justification
+            if isinstance(score_value, dict) and 'mark' in score_value:
+                scores[f"{criterion} (Mark)"] = score_value.get('mark', 'N/A')
+                scores[f"{criterion} (Justification)"] = score_value.get('justification', '')
+            else:
+                scores[criterion] = score_value
+                
         scores_data.append(scores)
     
     df = pd.DataFrame(scores_data)
@@ -65,19 +74,33 @@ def format_scores_results(results):
             cell = worksheet.cell(row=1, column=col + 1)
             cell.fill = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid')
             cell.font = Font(color='FFFFFF', bold=True)
-            
+        
+        # Format justification columns to wrap text
+        for col in range(len(df.columns)):
+            column_name = df.columns[col]
+            if 'Justification' in column_name:
+                for row in range(2, len(df) + 2):  # Start from row 2 (after header)
+                    cell = worksheet.cell(row=row, column=col + 1)
+                    cell.alignment = Alignment(wrap_text=True, vertical='top')
+        
         # Auto-adjust columns
         for column in worksheet.columns:
             max_length = 0
             column = [cell for cell in column]
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(cell.value)
-                except:
-                    pass
-            adjusted_width = (max_length + 2)
-            worksheet.column_dimensions[column[0].column_letter].width = adjusted_width
+            column_letter = column[0].column_letter
+            
+            # Special handling for justification columns - limit width
+            if 'Justification' in str(worksheet.cell(row=1, column=column[0].column).value):
+                worksheet.column_dimensions[column_letter].width = 50  # Fixed width for justifications
+            else:
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 40)  # Cap width at 40 characters
+                worksheet.column_dimensions[column_letter].width = adjusted_width
     
     output.seek(0)
     return output

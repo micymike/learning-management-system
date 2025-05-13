@@ -66,8 +66,53 @@ const AssessmentDetails = () => {
 
   // Helper function to format score with max value (assuming scores are out of 5)
   const formatScore = (score) => {
+    if (typeof score === 'object' && score.mark) {
+      return score.mark; // Return the mark directly from the structured format
+    }
     if (typeof score !== 'number') return 'N/A';
     return `${score}/5`;
+  };
+
+  // Helper function to determine if a score is a structured score object
+  const isStructuredScore = (score) => {
+    return typeof score === 'object' && score.mark !== undefined;
+  };
+
+  // Helper function to extract numeric value from mark range for calculations
+  const getNumericValue = (score) => {
+    if (typeof score === 'number') return score;
+    
+    if (isStructuredScore(score)) {
+      const mark = score.mark;
+      // Try to extract numeric values from mark ranges like "4 - 8 Marks"
+      if (typeof mark === 'string') {
+        // Check for ranges like "4 - 8 Marks"
+        const rangeMatch = mark.match(/(\d+)\s*-\s*(\d+)/);
+        if (rangeMatch) {
+          // Use the average of the range
+          return (parseInt(rangeMatch[1]) + parseInt(rangeMatch[2])) / 2;
+        }
+        
+        // Check for single values like "0 (No Mark)"
+        const singleMatch = mark.match(/(\d+)/);
+        if (singleMatch) {
+          return parseInt(singleMatch[1]);
+        }
+      }
+    }
+    
+    return 0; // Default if we can't extract a numeric value
+  };
+
+  // Helper function to determine status based on mark
+  const getStatusFromMark = (mark) => {
+    if (typeof mark === 'string') {
+      if (mark.includes('Fully Correct') || mark.includes('10 - 12') || mark.includes('10-12')) return 'Excellent';
+      if (mark.includes('Mostly Correct') || mark.includes('4 - 8') || mark.includes('4-8')) return 'Good';
+      if (mark.includes('Partially Correct') || mark.includes('1 - 3') || mark.includes('1-3')) return 'Needs Improvement';
+      if (mark.includes('No Mark') || mark === '0') return 'Unsatisfactory';
+    }
+    return 'Pending';
   };
 
   if (loading) {
@@ -123,9 +168,37 @@ const AssessmentDetails = () => {
   students.forEach(student => {
     // Calculate average score if available
     if (student.scores && typeof student.scores === 'object') {
-      const scores = Object.values(student.scores).filter(score => typeof score === 'number');
+      const scores = Object.values(student.scores).filter(score => typeof score === 'number' || isStructuredScore(score));
       if (scores.length > 0) {
-        const avgScore = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+        // Check if we have structured scores first
+        const structuredScores = scores.filter(score => isStructuredScore(score));
+        if (structuredScores.length > 0) {
+          // Find the main criterion if it exists
+          let mainCriterion = null;
+          for (const [key, value] of Object.entries(student.scores)) {
+            if (key.toLowerCase().includes('correctness') || key.toLowerCase().includes('main')) {
+              mainCriterion = [key, value];
+              break;
+            }
+          }
+          
+          if (mainCriterion && isStructuredScore(mainCriterion[1])) {
+            // Use the main criterion's mark to determine status
+            const status = getStatusFromMark(mainCriterion[1].mark);
+            
+            if (status === 'Excellent') scoreRanges['Excellent (90-100%)']++;
+            else if (status === 'Good') scoreRanges['Good (80-89%)']++;
+            else if (status === 'Satisfactory') scoreRanges['Satisfactory (70-79%)']++;
+            else if (status === 'Needs Improvement') scoreRanges['Needs Improvement (60-69%)']++;
+            else if (status === 'Unsatisfactory') scoreRanges['Unsatisfactory (0-59%)']++;
+            else scoreRanges['Pending']++;
+            
+            return; // Skip the numeric calculation
+          }
+        }
+        
+        // Fall back to numeric calculation if no structured main criterion
+        const avgScore = scores.reduce((sum, score) => sum + getNumericValue(score), 0) / scores.length;
         
         if (avgScore >= 90) scoreRanges['Excellent (90-100%)']++;
         else if (avgScore >= 80) scoreRanges['Good (80-89%)']++;
@@ -281,18 +354,42 @@ const AssessmentDetails = () => {
                       
                       if (student.scores && typeof student.scores === 'object') {
                         criteriaScores = Object.entries(student.scores)
-                          .filter(entry => typeof entry[1] === 'number')
+                          .filter(entry => typeof entry[1] === 'number' || isStructuredScore(entry[1]))
                           .map(entry => ({ criterion: entry[0], score: entry[1] }));
                         
                         if (criteriaScores.length > 0) {
-                          const avg = criteriaScores.reduce((sum, item) => sum + item.score, 0) / criteriaScores.length;
+                          const avg = criteriaScores.reduce((sum, item) => sum + getNumericValue(item.score), 0) / criteriaScores.length;
                           avgScore = avg.toFixed(1);
                           
-                          if (avg >= 90) status = 'Excellent';
-                          else if (avg >= 80) status = 'Good';
-                          else if (avg >= 70) status = 'Satisfactory';
-                          else if (avg >= 60) status = 'Needs Improvement';
-                          else status = 'Unsatisfactory';
+                          // Determine status based on score or mark
+                          if (criteriaScores.some(item => isStructuredScore(item.score))) {
+                            // If we have structured scores, use the mark to determine status
+                            let mainCriterion = null;
+                            for (const [key, value] of Object.entries(student.scores)) {
+                              if (key.toLowerCase().includes('correctness') || key.toLowerCase().includes('main')) {
+                                mainCriterion = [key, value];
+                                break;
+                              }
+                            }
+                            
+                            if (mainCriterion && isStructuredScore(mainCriterion[1])) {
+                              status = getStatusFromMark(mainCriterion[1].mark);
+                            } else {
+                              // Fall back to average score if no main criterion found
+                              if (avg >= 90) status = 'Excellent';
+                              else if (avg >= 80) status = 'Good';
+                              else if (avg >= 70) status = 'Satisfactory';
+                              else if (avg >= 60) status = 'Needs Improvement';
+                              else status = 'Unsatisfactory';
+                            }
+                          } else {
+                            // Use numeric score for status
+                            if (avg >= 90) status = 'Excellent';
+                            else if (avg >= 80) status = 'Good';
+                            else if (avg >= 70) status = 'Satisfactory';
+                            else if (avg >= 60) status = 'Needs Improvement';
+                            else status = 'Unsatisfactory';
+                          }
                         }
                       }
                       
@@ -325,6 +422,13 @@ const AssessmentDetails = () => {
                                   {criteriaScores.slice(0, 3).map((item, i) => (
                                     <span key={i} className="mb-1">
                                       {item.criterion}: {formatScore(item.score)}
+                                      {isStructuredScore(item.score) && item.score.justification && (
+                                        <span className="block text-xs text-gray-500 ml-2 truncate max-w-xs">
+                                          {item.score.justification.length > 60 
+                                            ? `${item.score.justification.substring(0, 60)}...` 
+                                            : item.score.justification}
+                                        </span>
+                                      )}
                                     </span>
                                   ))}
                                   {criteriaScores.length > 3 && (
@@ -415,25 +519,32 @@ const AssessmentDetails = () => {
                           <tbody className="bg-white divide-y divide-gray-200">
                             {Object.entries(selectedStudent.scores).map(([criterion, score], index) => (
                               <tr key={index}>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <td className="px-6 py-4 whitespace-normal text-sm text-gray-900">
                                   {criterion}
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                  {typeof score === 'number' ? formatScore(score) : 'N/A'}
+                                <td className="px-6 py-4 whitespace-normal text-sm">
+                                  <div className="flex flex-col">
+                                    <span className="font-medium text-gray-900">{formatScore(score)}</span>
+                                    {isStructuredScore(score) && score.justification && (
+                                      <span className="text-gray-600 text-xs mt-1 italic">
+                                        {score.justification}
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             ))}
                             {/* Add average row at the bottom */}
-                            {Object.values(selectedStudent.scores).some(score => typeof score === 'number') && (
+                            {Object.values(selectedStudent.scores).some(score => typeof score === 'number' || isStructuredScore(score)) && (
                               <tr className="bg-gray-50">
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                <td className="px-6 py-4 whitespace-normal text-sm font-medium text-gray-900">
                                   Average
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                <td className="px-6 py-4 whitespace-normal text-sm font-medium text-gray-900">
                                   {(() => {
-                                    const scores = Object.values(selectedStudent.scores).filter(score => typeof score === 'number');
+                                    const scores = Object.values(selectedStudent.scores).filter(score => typeof score === 'number' || isStructuredScore(score));
                                     if (scores.length === 0) return 'N/A';
-                                    const avg = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+                                    const avg = scores.reduce((sum, score) => sum + getNumericValue(score), 0) / scores.length;
                                     return avg.toFixed(1);
                                   })()}
                                 </td>

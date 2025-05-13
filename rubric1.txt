@@ -1,0 +1,7 @@
+Code quality and organization
+Documentation and comments
+Proper use of version control
+Implementation of required features
+Testing and error handling
+Security considerations
+Performance optimization

@@ -39,7 +39,7 @@ def assess_code(code, rubric, client):
     if not rubric or not rubric.strip():
         raise ValueError("Rubric cannot be empty. Please provide assessment criteria.")
 
-    # Ensure rubric is formatted as a string list if it's not already
+    # Ensure rubric is formatted as a string
     if isinstance(rubric, list):
         rubric_str = "\n".join([f"- {item}" for item in rubric])
     else:
@@ -53,36 +53,30 @@ def assess_code(code, rubric, client):
     # First pass: Deep analysis of the code
     analysis_system_prompt = """
 You are an expert code analyzer with deep knowledge of software engineering principles, design patterns, and best practices.
-Your task is to perform a thorough analysis of the provided code, focusing on:
+Your task is to perform a thorough analysis of the provided code based EXACTLY on the rubric provided.
 
-1. Code structure and organization
-2. Algorithm efficiency and complexity
-3. Error handling and edge cases
-4. Adherence to language-specific conventions and best practices
-5. Maintainability and readability
-6. Security considerations
-7. Performance implications
-8. Potential bugs or issues
+The rubric may be in a tabular format with specific mark ranges and criteria descriptions.
+You must analyze the code according to the EXACT criteria in the rubric, not any predefined criteria.
 
 Provide a detailed analysis that will be used as input for a subsequent scoring process.
 """
 
     analysis_user_prompt = f"""
-Analyze the following code in depth, considering the rubric criteria that will be used for assessment:
+Analyze the following code in depth, considering ONLY the rubric criteria that will be used for assessment:
 
-Rubric criteria:
+Rubric:
 {rubric_str}
 
 Code to analyze:
 {code}
 
-Provide a detailed analysis of the code's strengths and weaknesses relative to each criterion.
+Provide a detailed analysis of the code's strengths and weaknesses relative to EACH criterion in the rubric.
 """
 
     try:
         # First pass: Get detailed analysis
         analysis_response = client.chat.completions.create(
-            model="gpt-3.5-turbo-0125",  # Cheaper while still capable
+            model="gpt-3.5-turbo-0125",
             messages=[
                 {"role": "system", "content": analysis_system_prompt},
                 {"role": "user", "content": analysis_user_prompt}
@@ -91,41 +85,42 @@ Provide a detailed analysis of the code's strengths and weaknesses relative to e
         )
         code_analysis = analysis_response.choices[0].message.content
 
-        # Second pass: Score based on the analysis
+        # Second pass: Score based on the analysis and the exact rubric format
         scoring_system_prompt = """
-You are a strict code assessor. Your task is to evaluate code based STRICTLY on the given rubric criteria and a detailed code analysis.
-Each criterion must be rated from 1 (Poor) to 5 (Excellent).
+You are a strict code assessor. Your task is to evaluate code based STRICTLY on the given rubric and a detailed code analysis.
 
-Your response must follow this exact format for each criterion:
-criterion_name,score,brief_justification
+IMPORTANT: The rubric may have specific mark ranges (e.g., 0, 1-3, 4-8, 10-12) and detailed descriptions for each level.
+You MUST use the EXACT scoring system from the rubric, not a generic 1-5 scale.
 
-Example:
-Code compiles and runs without errors,4,The code compiles cleanly with only minor warnings about unused variables
-Code follows best practices,3,Some functions are too long and variable naming is inconsistent
-Functionality matches requirements,5,All specified features are implemented correctly
-Code is efficient and readable,4,Good use of comments but some algorithms could be optimized
-Proper use of version control,3,Commit messages are descriptive but some large commits contain unrelated changes
+For each criterion in the rubric:
+1. Determine which mark range/category the code falls into based on the descriptions
+2. Assign the appropriate mark or mark range
+3. Provide a brief justification for your assessment
 
-Rules:
-1. Score must be between 1-5 (integer only)
-2. Provide a brief justification (1-2 sentences) for each score
-3. Base scores on the provided code analysis
-4. Each criterion must get a score
-5. Be consistent and fair in your scoring
+Your response should include:
+1. The criterion name
+2. The mark or mark range assigned (exactly as specified in the rubric)
+3. A brief justification
+
+Example format:
+Criterion: [Name of criterion]
+Mark: [Mark or mark range as specified in the rubric]
+Justification: [Brief explanation]
 """
 
         scoring_user_prompt = f"""
-Rubric criteria to score (1-5):
+Rubric to use for assessment:
 {rubric_str}
 
 Detailed code analysis:
 {code_analysis}
 
-Return the scores with brief justifications for each criterion.
+Evaluate the code according to EACH criterion in the rubric, using the EXACT mark ranges and categories specified in the rubric.
+Return the assessment with marks and justifications for each criterion.
 """
 
         scoring_response = client.chat.completions.create(
-            model="gpt-3.5-turbo-0125",  # Cost-effective scoring
+            model="gpt-3.5-turbo-0125",
             messages=[
                 {"role": "system", "content": scoring_system_prompt},
                 {"role": "user", "content": scoring_user_prompt}
@@ -138,38 +133,93 @@ Return the scores with brief justifications for each criterion.
         scores_dict = {}
         justifications = {}
         
-        for line in assessment_content.strip().split('\n'):
-            if ',' in line:
-                parts = line.split(',', 2)
-                if len(parts) >= 2:
-                    criterion = parts[0].strip()
-                    try:
-                        score = int(parts[1].strip())
-                        scores_dict[criterion] = score
-                        
-                        # Store justification if available
-                        if len(parts) > 2:
-                            justifications[criterion] = parts[2].strip()
-                    except ValueError:
-                        # If score is not an integer, skip this line
-                        continue
-
-        # If no scores were parsed, try a more lenient parsing approach
+        # Try to parse structured format first
+        import re
+        criterion_pattern = r'Criterion:\s*(.*?)\s*\n'
+        mark_pattern = r'Mark:\s*(.*?)\s*\n'
+        justification_pattern = r'Justification:\s*(.*?)(?:\n\n|\Z)'
+        
+        criteria_matches = re.findall(criterion_pattern, assessment_content, re.DOTALL)
+        mark_matches = re.findall(mark_pattern, assessment_content, re.DOTALL)
+        justification_matches = re.findall(justification_pattern, assessment_content, re.DOTALL)
+        
+        if criteria_matches and mark_matches and len(criteria_matches) == len(mark_matches):
+            for i in range(len(criteria_matches)):
+                criterion = criteria_matches[i].strip()
+                mark = mark_matches[i].strip()
+                
+                # Store the exact mark or mark range from the rubric
+                scores_dict[criterion] = mark
+                
+                # Store justification if available
+                if i < len(justification_matches):
+                    justifications[criterion] = justification_matches[i].strip()
+        else:
+            # Fallback to line-by-line parsing
+            current_criterion = None
+            current_mark = None
+            current_justification = []
+            
+            for line in assessment_content.strip().split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                # Check if this line starts a new criterion
+                if line.lower().startswith('criterion:'):
+                    # Save previous criterion if exists
+                    if current_criterion and current_mark:
+                        scores_dict[current_criterion] = current_mark
+                        if current_justification:
+                            justifications[current_criterion] = ' '.join(current_justification)
+                    
+                    # Start new criterion
+                    current_criterion = line.split(':', 1)[1].strip()
+                    current_mark = None
+                    current_justification = []
+                elif line.lower().startswith('mark:') and current_criterion:
+                    current_mark = line.split(':', 1)[1].strip()
+                elif line.lower().startswith('justification:') and current_criterion:
+                    justification_text = line.split(':', 1)[1].strip()
+                    current_justification = [justification_text]
+                elif current_criterion and current_justification:
+                    # Continuation of justification
+                    current_justification.append(line)
+            
+            # Save the last criterion
+            if current_criterion and current_mark:
+                scores_dict[current_criterion] = current_mark
+                if current_justification:
+                    justifications[current_criterion] = ' '.join(current_justification)
+        
+        # If still no scores, try a more lenient parsing approach
         if not scores_dict:
             for line in assessment_content.strip().split('\n'):
                 if ':' in line:
-                    criterion, rest = line.split(':', 1)
-                    # Try to extract a number from the rest of the line
-                    import re
-                    score_match = re.search(r'\b[1-5]\b', rest)
-                    if score_match:
-                        scores_dict[criterion.strip()] = int(score_match.group())
+                    parts = line.split(':', 1)
+                    key = parts[0].strip()
+                    value = parts[1].strip()
+                    
+                    if key.lower() in ['criterion', 'criteria']:
+                        current_criterion = value
+                    elif key.lower() in ['mark', 'marks', 'score', 'grade'] and current_criterion:
+                        scores_dict[current_criterion] = value
+                    elif key.lower() in ['justification', 'reason', 'explanation'] and current_criterion:
+                        justifications[current_criterion] = value
 
         # If still no scores, return an error
         if not scores_dict:
             raise ValueError("Could not parse assessment results into scores")
 
-        return scores_dict
+        # Add justifications to the return value
+        result = {}
+        for criterion, score in scores_dict.items():
+            result[criterion] = {
+                'mark': score,
+                'justification': justifications.get(criterion, '')
+            }
+
+        return result
     except Exception as e:
         raise Exception(f"Error assessing code: {str(e)}")
 

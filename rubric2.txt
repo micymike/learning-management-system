@@ -1,0 +1,7 @@
+Algorithm efficiency and complexity
+Object-oriented design principles
+Error handling and edge cases
+Code readability and maintainability
+API design and implementation
+Unit test coverage
+Scalability considerations
