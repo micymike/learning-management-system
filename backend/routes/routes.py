@@ -3,7 +3,8 @@ This file defines the routes for the application
 """
 from flask import Blueprint, request, jsonify, send_file, session
 from flask_cors import CORS
-from openpyxl.styles import PatternFill, Font, Alignment
+from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 import io
 import pandas as pd
 import os
@@ -16,8 +17,13 @@ from rubric_handler import load_rubric
 import openai
 from dotenv import load_dotenv
 from models import db, Assessment, Student, StudentAssessment
+import hashlib
+import colorsys
 
 load_dotenv()
+
+# Create Blueprint
+routes_blueprint = Blueprint('routes', __name__)
 
 # Load OpenAI credentials from environment
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -28,9 +34,29 @@ try:
 except Exception as e:
     print(f"OpenAI API Error: {e}")
 
+def generate_color_for_criterion(criterion_name):
+    """Generate a consistent color for a criterion based on its name"""
+    # Create a hash of the criterion name for consistency
+    hash_obj = hashlib.md5(criterion_name.encode())
+    hash_hex = hash_obj.hexdigest()
+    
+    # Use the first 6 characters as RGB values
+    r = int(hash_hex[0:2], 16)
+    g = int(hash_hex[2:4], 16)
+    b = int(hash_hex[4:6], 16)
+    
+    # Adjust saturation and lightness for better appearance
+    h, s, v = colorsys.rgb_to_hsv(r/255, g/255, b/255)
+    s = max(0.4, min(0.8, s))  # Ensure reasonable saturation
+    v = max(0.7, min(0.9, v))  # Ensure reasonable brightness
+    r, g, b = colorsys.hsv_to_rgb(h, s, v)
+    
+    # Convert back to hex
+    return f"{int(r*255):02X}{int(g*255):02X}{int(b*255):02X}"
+
 def format_scores_results(results):
     """
-    Format scores into a pandas DataFrame and save as Excel
+    Format scores into a beautifully styled pandas DataFrame and save as Excel
     """
     if not results:
         return io.BytesIO()
@@ -42,481 +68,268 @@ def format_scores_results(results):
             criteria.update(result['scores'].keys())
         except Exception as e:
             print(f"Error extracting criteria: {e}")
-    
+
+    # Generate colors for each criterion
+    criterion_colors = {}
+    for criterion in criteria:
+        criterion_colors[criterion] = generate_color_for_criterion(criterion)
+
     scores_data = []
     for result in results:
-        scores = {
+        student_data = {
             'Name': result['name'],
-            'Repository': result['repo_url']
+            'Repository': result['repo_url'],
+            'Average Score': 'N/A',
+            'Percentage': 'N/A',
+            'Pass/Fail': 'N/A'
         }
-        
+
+        total_score = 0
+        valid_criteria_count = 0
+        criterion_scores = {}
+
         # Add all criteria scores, properly formatting structured scores
         for criterion in criteria:
             score_value = result.get('scores', {}).get(criterion, 0)
-            
+
             # Check if this is a structured score with mark and justification
             if isinstance(score_value, dict) and 'mark' in score_value:
-                scores[f"{criterion} (Mark)"] = score_value.get('mark', 'N/A')
-                scores[f"{criterion} (Justification)"] = score_value.get('justification', '')
+                mark = score_value.get('mark', 'N/A')
+                justification = score_value.get('justification', '')
+                criterion_scores[criterion] = mark
+                criterion_scores[f'{criterion} (Justification)'] = justification
+
+                # Try to convert mark to a number for averaging
+                try:
+                    numeric_mark = float(mark)
+                    total_score += numeric_mark
+                    valid_criteria_count += 1
+                except ValueError:
+                    print(f"Warning: Could not convert mark '{mark}' for criterion '{criterion}' to a number for averaging.")
             else:
-                scores[criterion] = score_value
-                
-        scores_data.append(scores)
-    
+                criterion_scores[criterion] = score_value
+                # Try to convert score_value to a number for averaging
+                try:
+                    numeric_score = float(score_value)
+                    total_score += numeric_score
+                    valid_criteria_count += 1
+                except ValueError:
+                    print(f"Warning: Could not convert score '{score_value}' for criterion '{criterion}' to a number for averaging.")
+
+        # Calculate average score and percentage
+        if valid_criteria_count > 0:
+            average_score = total_score / valid_criteria_count
+            percentage = (average_score / 5) * 100  # Assuming max score is 5
+            student_data['Average Score'] = round(average_score, 2)
+            student_data['Percentage'] = round(percentage, 2)
+            student_data['Pass/Fail'] = 'Pass' if percentage >= 80 else 'Fail'
+
+        # Combine student data and criterion scores
+        combined_data = {**student_data, **criterion_scores}
+        scores_data.append(combined_data)
+
     df = pd.DataFrame(scores_data)
+    
+    # Define column order
+    column_order = ['Name', 'Repository', 'Average Score', 'Percentage', 'Pass/Fail'] + [
+        col for col in df.columns if col not in ['Name', 'Repository', 'Average Score', 'Percentage', 'Pass/Fail']
+    ]
+    df = df[column_order]
+
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False)
-        worksheet = writer.sheets['Sheet1']
-        
-        # Format header
-        for col in range(len(df.columns)):
-            cell = worksheet.cell(row=1, column=col + 1)
-            cell.fill = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid')
-            cell.font = Font(color='FFFFFF', bold=True)
-        
-        # Format justification columns to wrap text
-        for col in range(len(df.columns)):
-            column_name = df.columns[col]
-            if 'Justification' in column_name:
-                for row in range(2, len(df) + 2):  # Start from row 2 (after header)
-                    cell = worksheet.cell(row=row, column=col + 1)
-                    cell.alignment = Alignment(wrap_text=True, vertical='top')
-        
-        # Auto-adjust columns
-        for column in worksheet.columns:
-            max_length = 0
-            column = [cell for cell in column]
-            column_letter = column[0].column_letter
-            
-            # Special handling for justification columns - limit width
-            if 'Justification' in str(worksheet.cell(row=1, column=column[0].column).value):
-                worksheet.column_dimensions[column_letter].width = 50  # Fixed width for justifications
-            else:
-                for cell in column:
-                    try:
-                        if len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except:
-                        pass
-                adjusted_width = min(max_length + 2, 40)  # Cap width at 40 characters
-                worksheet.column_dimensions[column_letter].width = adjusted_width
-    
+        df.to_excel(writer, index=False, sheet_name='Assessment Results')
+        worksheet = writer.sheets['Assessment Results']
+
+        # Apply beautiful styling
+        style_assessment_sheet(worksheet, df, criteria, criterion_colors)
+
     output.seek(0)
     return output
 
-def validate_rubric(rubric_text):
-    """
-    Validate that the rubric is properly formatted.
-    Returns (is_valid, error_message)
-    """
-    if not rubric_text or not rubric_text.strip():
-        return False, "Rubric cannot be empty"
+def style_assessment_sheet(worksheet, df, criteria, criterion_colors):
+    """Apply beautiful styling to the assessment results sheet"""
     
-    # Check if the rubric has at least one valid criterion
-    lines = [line.strip() for line in rubric_text.split('\n') if line.strip()]
-    if len(lines) == 0:
-        return False, "Rubric must contain at least one criterion"
+    # Define styles
+    header_font = Font(bold=True, color='FFFFFF', size=11)
+    data_font = Font(size=10)
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    center_alignment = Alignment(horizontal='center', vertical='center')
+    wrap_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    left_wrap_alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
     
-    # Validate that each line is a proper criterion (not too short)
-    for line in lines:
-        if len(line) < 5:  # Arbitrary minimum length for a meaningful criterion
-            return False, f"Criterion '{line}' is too short. Each criterion should be descriptive."
+    # Style basic info headers
+    basic_info_fill = PatternFill(start_color='4A90E2', end_color='4A90E2', fill_type='solid')
+    basic_columns = 5  # Name, Repository, Average Score, Percentage, Pass/Fail
     
-    return True, ""
-
-def validate_csv_content(students):
-    """
-    Validate that the parsed CSV content has the required fields.
-    Returns (is_valid, error_message)
-    """
-    if not students or len(students) == 0:
-        return False, "No student data found in the CSV file"
+    # Style basic info headers
+    for col in range(1, basic_columns + 1):
+        cell = worksheet.cell(row=1, column=col)
+        cell.font = header_font
+        cell.fill = basic_info_fill
+        cell.border = thin_border
+        cell.alignment = wrap_alignment
     
-    # Check if each student has the required fields
-    for i, student in enumerate(students):
-        if 'name' not in student or not student['name'].strip():
-            return False, f"Student at row {i+1} is missing a name"
+    # Style criterion headers with their respective colors
+    col_index = basic_columns + 1
+    for col in range(basic_columns + 1, len(df.columns) + 1):
+        cell = worksheet.cell(row=1, column=col)
+        column_name = df.columns[col - 1]
         
-        if 'repo_url' not in student or not student['repo_url'].strip():
-            return False, f"Student '{student.get('name', f'at row {i+1}')}' is missing a repository URL"
+        # Find the criterion this column belongs to
+        criterion_found = None
+        for criterion in criteria:
+            if criterion in column_name:
+                criterion_found = criterion
+                break
         
-        # Validate GitHub URL format (basic check)
-        if not student['repo_url'].startswith(('http://', 'https://')) or 'github.com' not in student['repo_url']:
-            return False, f"Invalid GitHub URL for student '{student.get('name', f'at row {i+1}')}': {student['repo_url']}"
-    
-    return True, ""
-
-routes_blueprint = Blueprint('routes', __name__)
-
-@routes_blueprint.route("/assess", methods=["POST"])
-def assess():
-    code = request.form.get('code')
-    rubric_file = request.files.get('rubric')
-    if not rubric_file:
-        return jsonify({"error": "No rubric file provided"}), 400
-    rubric = rubric_file.read().decode('utf-8')
-    
-    # Validate rubric
-    is_valid, error_msg = validate_rubric(rubric)
-    if not is_valid:
-        return jsonify({"error": error_msg}), 400
-    
-    result = assess_code(code, rubric, client)
-    return jsonify({"result": result})
-
-@routes_blueprint.route("/upload_csv", methods=["POST"])
-def upload_csv():
-    # Validate file exists
-    file = request.files.get('file')
-    if not file:
-        return jsonify({"error": "No CSV file provided"}), 400
-    
-    # Validate file type
-    filename = file.filename.lower()
-    if not filename.endswith(('.csv', '.xlsx', '.xls', '.txt')):
-        return jsonify({"error": "Invalid file format. Please upload a CSV, Excel, or text file."}), 400
-    
-    # Get assessment name
-    assessment_name = request.form.get('name', '')
-    if not assessment_name.strip():
-        assessment_name = f"Assessment {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-    
-    # Validate rubric file exists
-    rubric_file = request.files.get('rubric')
-    if not rubric_file:
-        return jsonify({"error": "No rubric file provided"}), 400
-    
-    # Get rubric file extension
-    rubric_filename = rubric_file.filename.lower()
-    
-    # Process rubric based on file type
-    try:
-        if rubric_filename.endswith('.txt') or rubric_filename.endswith('.csv'):
-            # Text files - read directly
-            try:
-                rubric = rubric_file.read().decode('utf-8')
-            except UnicodeDecodeError:
-                # Try different encodings if UTF-8 fails
-                try:
-                    rubric_file.seek(0)
-                    rubric = rubric_file.read().decode('latin-1')
-                except:
-                    return jsonify({"error": "Could not decode rubric file. Please ensure it's a valid text file."}), 400
-        elif rubric_filename.endswith(('.xlsx', '.xls')):
-            # Excel files - extract text from first column
-            try:
-                import pandas as pd
-                df = pd.read_excel(rubric_file)
-                # Extract first column as rubric criteria
-                if len(df.columns) > 0:
-                    rubric = '\n'.join(df[df.columns[0]].dropna().astype(str).tolist())
-                else:
-                    return jsonify({"error": "Excel file has no columns"}), 400
-            except Exception as e:
-                return jsonify({"error": f"Error processing Excel rubric: {str(e)}"}), 400
+        if criterion_found and criterion_found in criterion_colors:
+            color = criterion_colors[criterion_found]
+            criterion_fill = PatternFill(start_color=color, end_color=color, fill_type='solid')
+            cell.fill = criterion_fill
         else:
-            # Accept any file type but warn about potential issues
-            try:
-                rubric = rubric_file.read().decode('utf-8', errors='ignore')
-                print(f"Warning: Processing non-standard rubric file type: {rubric_filename}")
-            except Exception as e:
-                return jsonify({"error": f"Unsupported rubric file format. Please use .txt, .csv, .xlsx, or .xls: {str(e)}"}), 400
-    except Exception as e:
-        return jsonify({"error": f"Error processing rubric file: {str(e)}"}), 400
-    
-    # Validate rubric content
-    is_valid, error_msg = validate_rubric(rubric)
-    if not is_valid:
-        return jsonify({"error": error_msg}), 400
-    
-    # Process CSV file
-    try:
-        students = process_csv(file)
-    except Exception as e:
-        return jsonify({"error": f"Error processing CSV file: {str(e)}"}), 400
-    
-    # Validate CSV content
-    is_valid, error_msg = validate_csv_content(students)
-    if not is_valid:
-        return jsonify({"error": error_msg}), 400
-    
-    # Process each student
-    results = []
-    student_assessments = []  # Store assessments to be added later
-    for student in students:
-        name = student['name']
-        repo_url = student['repo_url']
+            # Default color for unmatched columns
+            cell.fill = PatternFill(start_color='CCCCCC', end_color='CCCCCC', fill_type='solid')
         
-        # Find or create student record
-        student_record = Student.query.filter_by(name=name).first()
-        if not student_record:
-            student_record = Student(name=name)
-            db.session.add(student_record)
-            db.session.flush()  # Get ID without committing
-        
-        # Analyze the repo and get code
-        try:
-            code_str = analyze_github_repo(repo_url)
-            if not code_str:
-                results.append({
-                    "name": name,
-                    "repo_url": repo_url,
-                    "error": "No code found in repository",
-                    "scores": {"Error": "No code found"}
-                })
-                continue
-        except Exception as e:
-            results.append({
-                "name": name,
-                "repo_url": repo_url,
-                "error": f"Error analyzing repository: {str(e)}",
-                "scores": {"Error": "Repository analysis failed"}
-            })
-            continue
+        cell.font = header_font
+        cell.border = thin_border
+        cell.alignment = wrap_alignment
+    
+    # Style data rows
+    for row in range(2, len(df) + 2):
+        for col in range(1, len(df.columns) + 1):
+            cell = worksheet.cell(row=row, column=col)
+            cell.font = data_font
+            cell.border = thin_border
             
-        repo_analysis = code_str if isinstance(code_str, str) else str(code_str)
+            column_name = df.columns[col - 1]
+            
+            # Special alignment for justification columns
+            if 'Justification' in column_name:
+                cell.alignment = left_wrap_alignment
+            else:
+                cell.alignment = center_alignment
+            
+            # Add alternating row colors for better readability
+            if row % 2 == 0:
+                cell.fill = PatternFill(start_color='F8F9FA', end_color='F8F9FA', fill_type='solid')
+    
+    # Set column widths
+    for col in range(1, len(df.columns) + 1):
+        column_letter = get_column_letter(col)
+        column_name = df.columns[col - 1]
+        
+        if column_name in ['Name', 'Repository']:
+            worksheet.column_dimensions[column_letter].width = 30
+        elif column_name in ['Average Score', 'Percentage', 'Pass/Fail']:
+            worksheet.column_dimensions[column_letter].width = 15
+        elif 'Justification' in column_name:
+            worksheet.column_dimensions[column_letter].width = 50
+        else:
+            # For criterion score columns
+            worksheet.column_dimensions[column_letter].width = 12
+    
+    # Set row height for header
+    worksheet.row_dimensions[1].height = 25
+
+# Add routes to the blueprint
+@routes_blueprint.route('/api/assess', methods=['POST'])
+def assess():
+    """Assess code using the AI model"""
+    try:
+        data = request.json
+        code = data.get('code')
+        rubric = data.get('rubric')
+        use_rag = data.get('use_rag', False)
+        
+        if not code:
+            return jsonify({"error": "No code provided"}), 400
+        
+        if not rubric:
+            return jsonify({"error": "No rubric provided"}), 400
         
         # Assess the code
-        try:
-            assessment = assess_code(repo_analysis, rubric, client)
-        except Exception as e:
-            results.append({
-                "name": name,
-                "repo_url": repo_url,
-                "error": f"Error assessing code: {str(e)}",
-                "scores": {"Error": "Assessment failed"}
-            })
-            continue
+        result = assess_code(code, rubric, client, use_rag=use_rag)
         
-        # Parse assessment results
-        scores = {}
-        if isinstance(assessment, dict):
-            scores = assessment
-        else:
-            assessment_lines = [line.strip() for line in assessment.split('\n')]
-            for line in assessment_lines:
-                if ',' in line:
-                    try:
-                        criterion, score = line.split(',', 1)
-                        scores[criterion.strip()] = int(score.strip())
-                    except (ValueError, TypeError):
-                        continue
-        
-        # Store student assessment for later
-        student_assessments.append({
-            "student_id": student_record.id,
-            "scores": scores,
-            "repo_url": repo_url,
-            "submission": code_str
-        })
-        
-        results.append({
-            "name": name,
-            "repo_url": repo_url,
-            "scores": scores
-        })
-    
-    # Store results in session for later download
-    session['last_assessment'] = results
-    
-    # Save to database
-    try:
-        # Create a new assessment record first
-        new_assessment = Assessment(
-            name=assessment_name,
-            rubric=rubric,
-            results=results
-        )
-        db.session.add(new_assessment)
-        db.session.flush()  # Get ID without committing
-        
-        # Now create student assessment records with the assessment ID
-        for student_data in student_assessments:
-            student_assessment = StudentAssessment(
-                student_id=student_data["student_id"],
-                assessment_id=new_assessment.id,  # Now we have the ID
-                scores=student_data["scores"],
-                repo_url=student_data["repo_url"],
-                submission=student_data["submission"]
-            )
-            db.session.add(student_assessment)
-        
-        db.session.commit()
-        
-        return jsonify({
-            "success": True, 
-            "results": results,
-            "assessment": {
-                "id": new_assessment.id,
-                "name": new_assessment.name,
-                "date": new_assessment.date.isoformat() if new_assessment.date else None,
-                "created_at": new_assessment.created_at.isoformat()
-            },
-            "message": f"Successfully processed {len(results)} student submissions"
-        })
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            "error": f"Error saving assessment to database: {str(e)}",
-            "results": results  # Still return results even if DB save fails
-        }), 500
-
-@routes_blueprint.route("/assessments", methods=["GET"])
-def get_assessments():
-    """Get all assessments"""
-    try:
-        assessments = Assessment.query.order_by(Assessment.created_at.desc()).all()
-        return jsonify({
-            "success": True,
-            "assessments": [assessment.to_dict() for assessment in assessments]
-        })
-    except Exception as e:
-        return jsonify({"error": f"Error retrieving assessments: {str(e)}"}), 500
-
-@routes_blueprint.route("/assessments/<int:assessment_id>", methods=["GET"])
-def get_assessment(assessment_id):
-    """Get a specific assessment by ID"""
-    try:
-        assessment = Assessment.query.get(assessment_id)
-        if not assessment:
-            return jsonify({"error": f"Assessment with ID {assessment_id} not found"}), 404
-        
-        return jsonify({
-            "success": True,
-            "assessment": assessment.to_dict()
-        })
-    except Exception as e:
-        return jsonify({"error": f"Error retrieving assessment: {str(e)}"}), 500
-
-@routes_blueprint.route("/download_excel", methods=["GET"])
-def download_excel():
-    results = session.get('last_assessment')
-    if not results:
-        return jsonify({"error": "No assessment results found. Please run an assessment first."}), 404
-    
-    output = format_scores_results(results)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return send_file(
-        output,
-        as_attachment=True,
-        download_name=f"assessment_scores_{timestamp}.xlsx",
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-@routes_blueprint.route("/download_excel/<int:assessment_id>", methods=["GET"])
-def download_assessment_excel(assessment_id):
-    """Download Excel for a specific assessment"""
-    try:
-        assessment = Assessment.query.get(assessment_id)
-        if not assessment:
-            return jsonify({"error": f"Assessment with ID {assessment_id} not found"}), 404
-        
-        results = assessment.results
-        output = format_scores_results(results)
-        
-        return send_file(
-            output,
-            as_attachment=True,
-            download_name=f"assessment_{assessment_id}_{assessment.name.replace(' ', '_')}.xlsx",
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-    except Exception as e:
-        return jsonify({"error": f"Error generating Excel file: {str(e)}"}), 500
-
-@routes_blueprint.route("/upload_rubric", methods=["POST"])
-def upload_rubric():
-    file = request.files.get('file')
-    if not file:
-        return jsonify({"error": "No file provided"}), 400
-    
-    try:
-        rubric = file.read().decode('utf-8')
-        
-        # Validate rubric content
-        is_valid, error_msg = validate_rubric(rubric)
-        if not is_valid:
-            return jsonify({"error": error_msg}), 400
-            
-        return jsonify({"success": True, "rubric": rubric})
-    except Exception as e:
-        return jsonify({"error": f"Error processing rubric: {str(e)}"}), 400
-
-@routes_blueprint.route("/upload_github_url", methods=["POST"])
-def upload_github_url():
-    url = request.form.get('url')
-    if not url:
-        return jsonify({"error": "No GitHub URL provided"}), 400
-    
-    # Validate GitHub URL format
-    if not url.startswith(('http://', 'https://')) or 'github.com' not in url:
-        return jsonify({"error": "Invalid GitHub URL format"}), 400
-    
-    try:
-        code = analyze_github_repo(url)
-        return jsonify({"success": True, "code": code})
-    except Exception as e:
-        return jsonify({"error": f"Error analyzing GitHub repository: {str(e)}"}), 400
-
-# Analytics endpoint
-@routes_blueprint.route("/analytics", methods=["GET"])
-def get_analytics():
-    """Get aggregate analytics: total students, total assessments, average score."""
-    try:
-        total_students = Student.query.count()
-        total_assessments = Assessment.query.count()
-        
-        # Calculate average score across all student assessments
-        avg_score = None
-        total_scores = 0
-        score_count = 0
-        student_assessments = StudentAssessment.query.all()
-        
-        for sa in student_assessments:
-            if sa.scores:  # Check if scores dictionary exists
-                # Calculate average of all scores for this assessment
-                assessment_scores = [
-                    score for score in sa.scores.values() 
-                    if isinstance(score, (int, float))
-                ]
-                if assessment_scores:
-                    total_scores += sum(assessment_scores) / len(assessment_scores)
-                    score_count += 1
-        
-        if score_count > 0:
-            avg_score = round(total_scores / score_count, 2)
-            
-        return jsonify({
-            "success": True,
-            "total_students": total_students,
-            "total_assessments": total_assessments,
-            "average_score": avg_score
-        })
-    except Exception as e:
-        print(f"Analytics error: {str(e)}")  # Add logging for debugging
-        return jsonify({"success": False, "error": str(e)}), 500
-
-# Student routes
-@routes_blueprint.route("/students", methods=["GET"])
-def get_students():
-    """Get all students with their assessment counts"""
-    try:
-        students = Student.query.all()
-        return jsonify({
-            "success": True,
-            "students": [student.to_dict() for student in students]
-        })
+        return jsonify({"success": True, "result": result})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@routes_blueprint.route("/students/<int:student_id>", methods=["GET"])
-def get_student(student_id):
-    """Get a specific student with their assessment history"""
+@routes_blueprint.route('/api/analyze-repo', methods=['POST'])
+def analyze_repo():
+    """Analyze a GitHub repository"""
     try:
-        student = Student.query.get_or_404(student_id)
-        return jsonify({
-            "success": True,
-            "student": student.to_dict_with_assessments()
-        })
+        data = request.json
+        repo_url = data.get('repo_url')
+        
+        if not repo_url:
+            return jsonify({"error": "No repository URL provided"}), 400
+        
+        # Analyze the repository
+        code = analyze_github_repo(repo_url)
+        
+        return jsonify({"success": True, "code": code})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@routes_blueprint.route('/api/process-csv', methods=['POST'])
+def process_csv_route():
+    """Process a CSV file with student data"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({"error": "No file provided"}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No file selected"}), 400
+        
+        # Save the file temporarily
+        temp_path = f"temp_{datetime.now().timestamp()}.csv"
+        file.save(temp_path)
+        
+        # Process the CSV
+        students = process_csv(temp_path)
+        
+        # Remove the temporary file
+        os.remove(temp_path)
+        
+        return jsonify({"success": True, "students": students})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@routes_blueprint.route('/api/rubric', methods=['GET'])
+def get_rubric():
+    """Get the current rubric"""
+    try:
+        rubric = load_rubric()
+        return jsonify({"success": True, "rubric": rubric})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@routes_blueprint.route('/api/export-results', methods=['POST'])
+def export_results():
+    """Export assessment results as Excel"""
+    try:
+        data = request.json
+        results = data.get('results')
+        
+        if not results:
+            return jsonify({"error": "No results provided"}), 400
+        
+        # Format the results
+        output = format_scores_results(results)
+        
+        # Return the Excel file
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name='assessment_results.xlsx'
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500

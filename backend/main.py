@@ -3,6 +3,8 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_session import Session
 from routes.routes import routes_blueprint
+from routes.rag_routes import rag_routes
+from routes.api_routes import api_routes
 from models import db, Assessment
 import os
 
@@ -45,7 +47,11 @@ CORS(app, supports_credentials=True, resources={
         "supports_credentials": True
     }
 })
+
+# Register blueprints
 app.register_blueprint(routes_blueprint)
+app.register_blueprint(rag_routes)
+app.register_blueprint(api_routes)
 
 # Assessment routes with error handling
 @app.route('/assessments/<int:assessment_id>', methods=['GET'])
