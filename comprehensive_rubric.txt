@@ -1,0 +1,23 @@
+Main Criterion: Correctness of Code
+0 (No Mark): Incorrect Code - The code provided by the student is fundamentally incorrect, and it does not fulfill the specified requirements.
+1 - 3 Marks: Partially Correct - The code contains some correct elements but also includes significant errors that impact its functionality.
+4 - 8 Marks: Mostly Correct - The majority of the code is correct, with only minor errors that do not significantly affect its overall functionality.
+10 - 12 Marks: Fully Correct - The code is entirely correct, meeting all specified requirements and functioning as intended.
+
+Main Criterion: Code Quality
+0 (No Mark): Poor Quality - The code is poorly structured, difficult to read, and does not follow any coding standards.
+1 - 2 Marks: Basic Quality - The code has basic structure but lacks consistency in formatting and naming conventions.
+3 - 4 Marks: Good Quality - The code is well-structured, follows consistent formatting, and uses appropriate naming conventions.
+5 Marks: Excellent Quality - The code is exceptionally well-structured, follows best practices, and is highly readable and maintainable.
+
+Main Criterion: Documentation
+0 (No Mark): No Documentation - The code lacks any form of documentation or comments.
+1 - 2 Marks: Minimal Documentation - The code has some basic comments but lacks comprehensive documentation.
+3 - 4 Marks: Good Documentation - The code is well-documented with clear comments explaining key functionality.
+5 Marks: Excellent Documentation - The code has comprehensive documentation, including function descriptions, parameter explanations, and usage examples.
+
+Main Criterion: Efficiency
+0 (No Mark): Inefficient - The code uses inefficient algorithms or approaches that significantly impact performance.
+1 - 2 Marks: Somewhat Efficient - The code uses moderately efficient approaches but has room for optimization.
+3 - 4 Marks: Efficient - The code uses efficient algorithms and approaches for most operations.
+5 Marks: Highly Efficient - The code uses the most efficient algorithms and approaches possible for all operations.

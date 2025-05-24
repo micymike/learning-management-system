@@ -3,6 +3,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_session import Session
 from routes.routes import routes_blueprint
+from routes.rag_routes import rag_routes
 from models import db, Assessment
 import os
 
@@ -39,30 +40,18 @@ CORS(app, supports_credentials=True, resources={
             "https://codeanalyzer-bc.onrender.com",
             "https://directed-codeanalyzer.onrender.com"
         ],
-        "methods": ["GET", "POST"],
+        "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type"],
         "expose_headers": ["Content-Type"],
         "supports_credentials": True
     }
 })
-app.register_blueprint(routes_blueprint)
 
-# Assessment routes with error handling
-@app.route('/assessments/<int:assessment_id>', methods=['GET'])
-def get_assessment(assessment_id):
-    try:
-        assessment = Assessment.query.get_or_404(assessment_id)
-        return jsonify({
-            'id': assessment.id,
-            'name': assessment.name,
-            'created_at': assessment.created_at
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# Register blueprints
+app.register_blueprint(routes_blueprint, url_prefix='/api')
+app.register_blueprint(rag_routes, url_prefix='/api/rag')
 
-# Route moved to routes.py to avoid duplication
-
-# Global error handlers to ensure JSON responses
+# Global error handlers
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({"error": "Not found", "message": str(error)}), 404
@@ -73,8 +62,10 @@ def method_not_allowed(error):
 
 @app.errorhandler(Exception)
 def handle_exception(error):
-    # For debugging, include error string; in production, you may want to hide details
-    return jsonify({"error": "Internal server error", "message": str(error)}), 500
+    return jsonify({
+        "error": "Internal server error", 
+        "message": str(error)
+    }), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000, debug=True)

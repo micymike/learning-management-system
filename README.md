@@ -1,128 +1,147 @@
-# AI-Powered Student Repo Grader
+# Learning Management System with RAG-based Assessment
 
-A web-based application that automates the grading of coding assignments submitted by students via GitHub repositories. The tool uses a grading rubric provided by the instructor and analyzes student code submissions to output structured grading reports.
+This system uses Retrieval-Augmented Generation (RAG) to assess student code submissions based on rubrics.
 
-## Features
+## Setup
 
-- **CSV Upload Interface**: Upload a CSV file with student names and GitHub repository URLs
-- **Rubric Creation**: Define custom grading criteria with maximum scores and descriptions
-- **Repository Analysis**: Automatically clone and analyze GitHub repositories
-- **AI Grading Engine**: Evaluate code against defined rubric criteria
-- **AI-Generated Code Estimation**: Estimate the percentage of AI-generated code
-- **Report Generation**: Download comprehensive evaluation reports in CSV or Excel format
-
-## Tech Stack
-
-### Backend
-- Python with FastAPI
-- SQLite database
-- GitPython for repository interaction
-- Pandas for data processing and report generation
-
-### Frontend
-- React with Vite
-- Framer Motion for animations
-- CSS Variables for theming
-- Fetch API for network requests
-
-## Environment Variables
-
-### Frontend (.env file)
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| VITE_API_URL | URL of the backend API | http://localhost:5000/api |
-
-You can copy the `.env.example` file to create your own `.env` file:
-```
-cp frontend/.env.example frontend/.env
-```
-
-## Setup Instructions
-
-### Prerequisites
-- Node.js (v14+)
-- Python (v3.8+)
-- Git
-
-### Backend Setup
-
-1. Navigate to the backend directory:
-   ```
-   cd backend
-   ```
-
-2. Create a virtual environment:
-   ```
-   python -m venv venv
-   ```
-
+1. Clone the repository
+2. Create a virtual environment: `python -m venv venv`
 3. Activate the virtual environment:
-   - On Windows:
-     ```
-     venv\Scripts\activate
-     ```
-   - On macOS/Linux:
-     ```
-     source venv/bin/activate
-     ```
+   - Windows: `venv\\Scripts\\activate`
+   - Unix/MacOS: `source venv/bin/activate`
+4. Install dependencies: `pip install -r backend/requirements.txt`
+5. Copy `.env.example` to `.env` and fill in your API keys and configuration
+6. Set up Pinecone:
+   - Create a Pinecone account at https://www.pinecone.io/
+   - Create an index named "code-assessment" with dimension 1536 and metric "cosine"
+   - Add your Pinecone API key and environment to `.env`
+7. Set up Google Drive API (for bulk training):
+   - Create a project in Google Cloud Console
+   - Enable the Google Drive API
+   - Create a service account and download the credentials JSON file
+   - Share your Google Drive folders with the service account email
+   - Add the path to the credentials file in `.env`
 
-4. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
+## Training the RAG System
 
-5. Run the backend server:
-   ```
-   python run.py
-   ```
-   The API will be available at http://localhost:5000/api
+### Option 1: Using the Training Script
 
-   > **Note:** The frontend is configured to connect to the backend at http://localhost:5000/api by default. If you need to change this, update the `VITE_API_URL` in the frontend's `.env` file.
+The easiest way to train the RAG system is using the provided script:
 
-### Frontend Setup
+```bash
+./train.sh training_scripts.csv
+```
 
-1. Navigate to the frontend directory:
-   ```
-   cd frontend
-   ```
+This will:
+1. Process the CSV file containing links to rubrics and example assessments
+2. Download the content and extract training data
+3. Add the rubrics and examples to the vector database
 
-2. Create an environment file:
-   ```
-   cp .env.example .env
-   ```
-   Edit the `.env` file to configure your environment variables.
+### Option 2: Bulk Training from Google Drive
 
-3. Install dependencies:
-   ```
-   npm install
-   ```
+1. Organize your rubrics and examples in Google Drive folders
+2. Add the folder IDs to `.env`
+3. Run the training script: `python backend/rag_trainer.py`
 
-4. Run the development server:
-   ```
-   npm run dev
-   ```
-   The application will be available at http://localhost:5173
+### Option 3: Manual Training via API
 
-## Usage Guide
+Send a POST request to `/rag/train/manual` with JSON data:
 
-1. **Create an Assignment**:
-   - Navigate to the Assignments page
-   - Click "Create Assignment"
-   - Fill in assignment details and create a rubric
+```json
+{
+  "rubric": "Your rubric text here...",
+  "rubric_id": "optional_rubric_id",
+  "example": {
+    "code": "Your example code here...",
+    "scores": {
+      "Criterion 1": {
+        "mark": "10/12",
+        "justification": "Explanation for the score"
+      },
+      "Criterion 2": {
+        "mark": "8/12",
+        "justification": "Explanation for the score"
+      }
+    },
+    "id": "optional_example_id"
+  }
+}
+```
 
-2. **Add Student Submissions**:
-   - Open an assignment
-   - Add individual submissions or upload a CSV file with multiple submissions
+## Using the Assessment System
 
-3. **View Evaluations**:
-   - Wait for the automatic grading to complete
-   - Click on a submission to view detailed evaluation results
+### Traditional vs RAG-based Assessment
 
-4. **Download Reports**:
-   - Go to the Reports tab in an assignment
-   - Download CSV or Excel reports with all evaluation results
+The system supports both traditional LLM-based assessment and RAG-based assessment:
 
-## License
+1. **Traditional Assessment**: Uses OpenAI's GPT models directly with the rubric
+2. **RAG-based Assessment**: Enhances the assessment by retrieving similar examples and rubrics
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+You can choose which method to use:
+
+- Set `USE_RAG=true` in your `.env` file to use RAG-based assessment by default
+- Use the `/api/assess` endpoint with `use_rag: true` in your JSON payload
+- Use the `/api/compare-assessment` endpoint to get results from both methods
+
+### API Endpoints
+
+#### Assess Code
+
+```
+POST /api/assess
+```
+
+Request body:
+```json
+{
+  "code": "Your code to assess",
+  "rubric": "Your rubric text",
+  "use_rag": true
+}
+```
+
+#### Compare Assessment Methods
+
+```
+POST /api/compare-assessment
+```
+
+Request body:
+```json
+{
+  "code": "Your code to assess",
+  "rubric": "Your rubric text"
+}
+```
+
+#### RAG-specific Endpoints
+
+```
+POST /rag/assess
+```
+- Supports both JSON and form data
+- Can process individual code or GitHub repositories
+
+```
+POST /rag/assess/excel
+```
+- Returns an Excel file with formatted assessment results
+
+## File Structure
+
+- `backend/AI_assessor.py`: Traditional assessment system
+- `backend/rag_assessor.py`: RAG-based assessment system
+- `backend/rag_trainer.py`: Script for training the RAG system
+- `backend/train_from_csv.py`: Script for training from CSV data
+- `backend/routes/api_routes.py`: Combined API routes
+- `backend/routes/rag_routes.py`: RAG-specific API routes
+- `train.sh`: Shell script for easy training
+
+## Troubleshooting
+
+If you encounter issues with the RAG system:
+
+1. Check that your vector database (Pinecone or ChromaDB) is properly set up
+2. Ensure you have trained the system with relevant examples
+3. Verify your OpenAI API key is valid and has sufficient credits
+4. If RAG assessment fails, the system will fall back to traditional assessment

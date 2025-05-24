@@ -284,8 +284,17 @@ def main():
                     print(f"Warning: No code found for {student_name}'s repository.")
                     continue
                 
-                # Assess code
-                scores = assess_code(code, rubric, client)
+                # Get RAG assessor
+                from rag_assessor import get_assessor
+                rag = get_assessor()
+                
+                try:
+                    # Try RAG-based assessment first
+                    scores = rag.assess_code(code, rubric)
+                except Exception as e:
+                    print(f"RAG assessment failed, falling back to direct assessment: {e}")
+                    # Fall back to direct assessment
+                    scores = assess_code(code, rubric, client)
                 
                 # Add to results
                 results.append({

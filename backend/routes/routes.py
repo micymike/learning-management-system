@@ -16,8 +16,12 @@ from rubric_handler import load_rubric
 import openai
 from dotenv import load_dotenv
 from models import db, Assessment, Student, StudentAssessment
+from rag_assessor import get_assessor
 
 load_dotenv()
+
+# Create Blueprint
+routes_blueprint = Blueprint('routes', __name__)
 
 # Load OpenAI credentials from environment
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -28,495 +32,246 @@ try:
 except Exception as e:
     print(f"OpenAI API Error: {e}")
 
-def format_scores_results(results):
-    """
-    Format scores into a pandas DataFrame and save as Excel
-    """
-    if not results:
-        return io.BytesIO()
-
-    # Extract all criteria from the results to ensure consistent columns
-    criteria = set()
-    for result in results:
-        try:
-            criteria.update(result['scores'].keys())
-        except Exception as e:
-            print(f"Error extracting criteria: {e}")
-    
-    scores_data = []
-    for result in results:
-        scores = {
-            'Name': result['name'],
-            'Repository': result['repo_url']
-        }
-        
-        # Add all criteria scores, properly formatting structured scores
-        for criterion in criteria:
-            score_value = result.get('scores', {}).get(criterion, 0)
-            
-            # Check if this is a structured score with mark and justification
-            if isinstance(score_value, dict) and 'mark' in score_value:
-                scores[f"{criterion} (Mark)"] = score_value.get('mark', 'N/A')
-                scores[f"{criterion} (Justification)"] = score_value.get('justification', '')
-            else:
-                scores[criterion] = score_value
-                
-        scores_data.append(scores)
-    
-    df = pd.DataFrame(scores_data)
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False)
-        worksheet = writer.sheets['Sheet1']
-        
-        # Format header
-        for col in range(len(df.columns)):
-            cell = worksheet.cell(row=1, column=col + 1)
-            cell.fill = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid')
-            cell.font = Font(color='FFFFFF', bold=True)
-        
-        # Format justification columns to wrap text
-        for col in range(len(df.columns)):
-            column_name = df.columns[col]
-            if 'Justification' in column_name:
-                for row in range(2, len(df) + 2):  # Start from row 2 (after header)
-                    cell = worksheet.cell(row=row, column=col + 1)
-                    cell.alignment = Alignment(wrap_text=True, vertical='top')
-        
-        # Auto-adjust columns
-        for column in worksheet.columns:
-            max_length = 0
-            column = [cell for cell in column]
-            column_letter = column[0].column_letter
-            
-            # Special handling for justification columns - limit width
-            if 'Justification' in str(worksheet.cell(row=1, column=column[0].column).value):
-                worksheet.column_dimensions[column_letter].width = 50  # Fixed width for justifications
-            else:
-                for cell in column:
-                    try:
-                        if len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except:
-                        pass
-                adjusted_width = min(max_length + 2, 40)  # Cap width at 40 characters
-                worksheet.column_dimensions[column_letter].width = adjusted_width
-    
-    output.seek(0)
-    return output
-
-def validate_rubric(rubric_text):
-    """
-    Validate that the rubric is properly formatted.
-    Returns (is_valid, error_message)
-    """
-    if not rubric_text or not rubric_text.strip():
-        return False, "Rubric cannot be empty"
-    
-    # Check if the rubric has at least one valid criterion
-    lines = [line.strip() for line in rubric_text.split('\n') if line.strip()]
-    if len(lines) == 0:
-        return False, "Rubric must contain at least one criterion"
-    
-    # Validate that each line is a proper criterion (not too short)
-    for line in lines:
-        if len(line) < 5:  # Arbitrary minimum length for a meaningful criterion
-            return False, f"Criterion '{line}' is too short. Each criterion should be descriptive."
-    
-    return True, ""
-
-def validate_csv_content(students):
-    """
-    Validate that the parsed CSV content has the required fields.
-    Returns (is_valid, error_message)
-    """
-    if not students or len(students) == 0:
-        return False, "No student data found in the CSV file"
-    
-    # Check if each student has the required fields
-    for i, student in enumerate(students):
-        if 'name' not in student or not student['name'].strip():
-            return False, f"Student at row {i+1} is missing a name"
-        
-        if 'repo_url' not in student or not student['repo_url'].strip():
-            return False, f"Student '{student.get('name', f'at row {i+1}')}' is missing a repository URL"
-        
-        # Validate GitHub URL format (basic check)
-        if not student['repo_url'].startswith(('http://', 'https://')) or 'github.com' not in student['repo_url']:
-            return False, f"Invalid GitHub URL for student '{student.get('name', f'at row {i+1}')}': {student['repo_url']}"
-    
-    return True, ""
-
-routes_blueprint = Blueprint('routes', __name__)
-
-@routes_blueprint.route("/assess", methods=["POST"])
+@routes_blueprint.route('/assess', methods=['POST'])
 def assess():
-    code = request.form.get('code')
-    rubric_file = request.files.get('rubric')
-    if not rubric_file:
-        return jsonify({"error": "No rubric file provided"}), 400
-    rubric = rubric_file.read().decode('utf-8')
-    
-    # Validate rubric
-    is_valid, error_msg = validate_rubric(rubric)
-    if not is_valid:
-        return jsonify({"error": error_msg}), 400
-    
-    result = assess_code(code, rubric, client)
-    return jsonify({"result": result})
-
-@routes_blueprint.route("/upload_csv", methods=["POST"])
-def upload_csv():
-    # Validate file exists
-    file = request.files.get('file')
-    if not file:
-        return jsonify({"error": "No CSV file provided"}), 400
-    
-    # Validate file type
-    filename = file.filename.lower()
-    if not filename.endswith(('.csv', '.xlsx', '.xls', '.txt')):
-        return jsonify({"error": "Invalid file format. Please upload a CSV, Excel, or text file."}), 400
-    
-    # Get assessment name
-    assessment_name = request.form.get('name', '')
-    if not assessment_name.strip():
-        assessment_name = f"Assessment {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-    
-    # Validate rubric file exists
-    rubric_file = request.files.get('rubric')
-    if not rubric_file:
-        return jsonify({"error": "No rubric file provided"}), 400
-    
-    # Get rubric file extension
-    rubric_filename = rubric_file.filename.lower()
-    
-    # Process rubric based on file type
+    """Assess code using either traditional or RAG-based approach"""
     try:
-        if rubric_filename.endswith('.txt') or rubric_filename.endswith('.csv'):
-            # Text files - read directly
-            try:
-                rubric = rubric_file.read().decode('utf-8')
-            except UnicodeDecodeError:
-                # Try different encodings if UTF-8 fails
-                try:
-                    rubric_file.seek(0)
-                    rubric = rubric_file.read().decode('latin-1')
-                except:
-                    return jsonify({"error": "Could not decode rubric file. Please ensure it's a valid text file."}), 400
-        elif rubric_filename.endswith(('.xlsx', '.xls')):
-            # Excel files - extract text from first column
-            try:
-                import pandas as pd
-                df = pd.read_excel(rubric_file)
-                # Extract first column as rubric criteria
-                if len(df.columns) > 0:
-                    rubric = '\n'.join(df[df.columns[0]].dropna().astype(str).tolist())
-                else:
-                    return jsonify({"error": "Excel file has no columns"}), 400
-            except Exception as e:
-                return jsonify({"error": f"Error processing Excel rubric: {str(e)}"}), 400
-        else:
-            # Accept any file type but warn about potential issues
-            try:
-                rubric = rubric_file.read().decode('utf-8', errors='ignore')
-                print(f"Warning: Processing non-standard rubric file type: {rubric_filename}")
-            except Exception as e:
-                return jsonify({"error": f"Unsupported rubric file format. Please use .txt, .csv, .xlsx, or .xls: {str(e)}"}), 400
-    except Exception as e:
-        return jsonify({"error": f"Error processing rubric file: {str(e)}"}), 400
-    
-    # Validate rubric content
-    is_valid, error_msg = validate_rubric(rubric)
-    if not is_valid:
-        return jsonify({"error": error_msg}), 400
-    
-    # Process CSV file
-    try:
-        students = process_csv(file)
-    except Exception as e:
-        return jsonify({"error": f"Error processing CSV file: {str(e)}"}), 400
-    
-    # Validate CSV content
-    is_valid, error_msg = validate_csv_content(students)
-    if not is_valid:
-        return jsonify({"error": error_msg}), 400
-    
-    # Process each student
-    results = []
-    student_assessments = []  # Store assessments to be added later
-    for student in students:
-        name = student['name']
-        repo_url = student['repo_url']
+        code = request.form.get('code')
+        rubric = request.form.get('rubric')
         
-        # Find or create student record
-        student_record = Student.query.filter_by(name=name).first()
-        if not student_record:
-            student_record = Student(name=name)
-            db.session.add(student_record)
-            db.session.flush()  # Get ID without committing
+        if not code:
+            return jsonify({"error": "No code provided"}), 400
         
-        # Analyze the repo and get code
+        if not rubric:
+            return jsonify({"error": "No rubric provided"}), 400
+        
+        # Try RAG-based assessment first
         try:
-            code_str = analyze_github_repo(repo_url)
-            if not code_str:
-                results.append({
-                    "name": name,
-                    "repo_url": repo_url,
-                    "error": "No code found in repository",
-                    "scores": {"Error": "No code found"}
-                })
-                continue
+            rag = get_assessor()
+            result = rag.assess_code(code, rubric)
         except Exception as e:
-            results.append({
-                "name": name,
-                "repo_url": repo_url,
-                "error": f"Error analyzing repository: {str(e)}",
-                "scores": {"Error": "Repository analysis failed"}
-            })
-            continue
-            
-        repo_analysis = code_str if isinstance(code_str, str) else str(code_str)
+            print(f"RAG assessment failed, falling back to direct assessment: {e}")
+            # Fall back to direct assessment
+            result = assess_code(code, rubric, client)
         
-        # Assess the code
-        try:
-            assessment = assess_code(repo_analysis, rubric, client)
-        except Exception as e:
-            results.append({
-                "name": name,
-                "repo_url": repo_url,
-                "error": f"Error assessing code: {str(e)}",
-                "scores": {"Error": "Assessment failed"}
-            })
-            continue
-        
-        # Parse assessment results
-        scores = {}
-        if isinstance(assessment, dict):
-            scores = assessment
-        else:
-            assessment_lines = [line.strip() for line in assessment.split('\n')]
-            for line in assessment_lines:
-                if ',' in line:
-                    try:
-                        criterion, score = line.split(',', 1)
-                        scores[criterion.strip()] = int(score.strip())
-                    except (ValueError, TypeError):
-                        continue
-        
-        # Store student assessment for later
-        student_assessments.append({
-            "student_id": student_record.id,
-            "scores": scores,
-            "repo_url": repo_url,
-            "submission": code_str
-        })
-        
-        results.append({
-            "name": name,
-            "repo_url": repo_url,
-            "scores": scores
-        })
-    
-    # Store results in session for later download
-    session['last_assessment'] = results
-    
-    # Save to database
-    try:
-        # Create a new assessment record first
-        new_assessment = Assessment(
-            name=assessment_name,
-            rubric=rubric,
-            results=results
-        )
-        db.session.add(new_assessment)
-        db.session.flush()  # Get ID without committing
-        
-        # Now create student assessment records with the assessment ID
-        for student_data in student_assessments:
-            student_assessment = StudentAssessment(
-                student_id=student_data["student_id"],
-                assessment_id=new_assessment.id,  # Now we have the ID
-                scores=student_data["scores"],
-                repo_url=student_data["repo_url"],
-                submission=student_data["submission"]
-            )
-            db.session.add(student_assessment)
-        
-        db.session.commit()
-        
-        return jsonify({
-            "success": True, 
-            "results": results,
-            "assessment": {
-                "id": new_assessment.id,
-                "name": new_assessment.name,
-                "date": new_assessment.date.isoformat() if new_assessment.date else None,
-                "created_at": new_assessment.created_at.isoformat()
-            },
-            "message": f"Successfully processed {len(results)} student submissions"
-        })
+        return jsonify({"success": True, "result": result})
     except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            "error": f"Error saving assessment to database: {str(e)}",
-            "results": results  # Still return results even if DB save fails
-        }), 500
+        return jsonify({"error": str(e)}), 500
 
-@routes_blueprint.route("/assessments", methods=["GET"])
+@routes_blueprint.route('/assessments', methods=['GET'])
 def get_assessments():
     """Get all assessments"""
     try:
-        assessments = Assessment.query.order_by(Assessment.created_at.desc()).all()
+        assessments = Assessment.query.all()
         return jsonify({
             "success": True,
-            "assessments": [assessment.to_dict() for assessment in assessments]
+            "assessments": [a.to_dict() for a in assessments]
         })
     except Exception as e:
-        return jsonify({"error": f"Error retrieving assessments: {str(e)}"}), 500
+        return jsonify({"error": str(e)}), 500
 
-@routes_blueprint.route("/assessments/<int:assessment_id>", methods=["GET"])
+@routes_blueprint.route('/assessments/<int:assessment_id>', methods=['GET'])
 def get_assessment(assessment_id):
-    """Get a specific assessment by ID"""
+    """Get a specific assessment"""
     try:
-        assessment = Assessment.query.get(assessment_id)
-        if not assessment:
-            return jsonify({"error": f"Assessment with ID {assessment_id} not found"}), 404
-        
+        assessment = Assessment.query.get_or_404(assessment_id)
         return jsonify({
             "success": True,
             "assessment": assessment.to_dict()
         })
     except Exception as e:
-        return jsonify({"error": f"Error retrieving assessment: {str(e)}"}), 500
+        return jsonify({"error": str(e)}), 500
 
-@routes_blueprint.route("/download_excel", methods=["GET"])
-def download_excel():
-    results = session.get('last_assessment')
-    if not results:
-        return jsonify({"error": "No assessment results found. Please run an assessment first."}), 404
-    
-    output = format_scores_results(results)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return send_file(
-        output,
-        as_attachment=True,
-        download_name=f"assessment_scores_{timestamp}.xlsx",
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-@routes_blueprint.route("/download_excel/<int:assessment_id>", methods=["GET"])
-def download_assessment_excel(assessment_id):
-    """Download Excel for a specific assessment"""
+@routes_blueprint.route('/upload_csv', methods=['POST'])
+def upload_csv():
+    """Process CSV file with student data"""
     try:
-        assessment = Assessment.query.get(assessment_id)
-        if not assessment:
-            return jsonify({"error": f"Assessment with ID {assessment_id} not found"}), 404
+        if 'file' not in request.files:
+            return jsonify({"error": "No file provided"}), 400
         
-        results = assessment.results
-        output = format_scores_results(results)
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No file selected"}), 400
         
-        return send_file(
-            output,
-            as_attachment=True,
-            download_name=f"assessment_{assessment_id}_{assessment.name.replace(' ', '_')}.xlsx",
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-    except Exception as e:
-        return jsonify({"error": f"Error generating Excel file: {str(e)}"}), 500
-
-@routes_blueprint.route("/upload_rubric", methods=["POST"])
-def upload_rubric():
-    file = request.files.get('file')
-    if not file:
-        return jsonify({"error": "No file provided"}), 400
-    
-    try:
-        rubric = file.read().decode('utf-8')
+        # Get assessment name and rubric
+        name = request.form.get('name', f'Assessment {datetime.now().strftime("%Y-%m-%d %H:%M")}')
+        rubric = request.form.get('rubric')
         
-        # Validate rubric content
-        is_valid, error_msg = validate_rubric(rubric)
-        if not is_valid:
-            return jsonify({"error": error_msg}), 400
+        if not rubric and 'rubric' in request.files:
+            rubric_file = request.files['rubric']
+            rubric = rubric_file.read().decode('utf-8')
+        
+        if not rubric:
+            return jsonify({"error": "No rubric provided"}), 400
+        
+        # Save the file temporarily
+        temp_path = f"temp_{datetime.now().timestamp()}.csv"
+        file.save(temp_path)
+        
+        try:
+            # Process the CSV
+            df = pd.read_csv(temp_path)
             
-        return jsonify({"success": True, "rubric": rubric})
+            # Create assessment record
+            assessment = Assessment(
+                name=name,
+                rubric=rubric,
+                date=datetime.utcnow()
+            )
+            db.session.add(assessment)
+            
+            # Process each student
+            results = []
+            for _, row in df.iterrows():
+                student_name = row.get('name', '').strip()
+                repo_url = row.get('repo_url', '').strip()
+                
+                if not student_name or not repo_url:
+                    continue
+                
+                try:
+                    # Get or create student
+                    student = Student.query.filter_by(name=student_name).first()
+                    if not student:
+                        student = Student(name=student_name)
+                        db.session.add(student)
+                    
+                    # Create student assessment
+                    student_assessment = StudentAssessment(
+                        student=student,
+                        assessment=assessment,
+                        repo_url=repo_url
+                    )
+                    db.session.add(student_assessment)
+                    
+                    # Add to results
+                    results.append({
+                        'name': student_name,
+                        'repo_url': repo_url,
+                        'status': 'Pending Assessment'
+                    })
+                except Exception as e:
+                    print(f"Error processing student {student_name}: {e}")
+                    results.append({
+                        'name': student_name,
+                        'repo_url': repo_url,
+                        'status': 'Error',
+                        'error': str(e)
+                    })
+            
+            # Save all changes
+            db.session.commit()
+            
+            # Return success response
+            return jsonify({
+                "success": True,
+                "message": "CSV processed successfully",
+                "assessment": assessment.to_dict(),
+                "results": results
+            })
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
     except Exception as e:
-        return jsonify({"error": f"Error processing rubric: {str(e)}"}), 400
+        return jsonify({"error": str(e)}), 500
 
-@routes_blueprint.route("/upload_github_url", methods=["POST"])
+@routes_blueprint.route('/upload_github_url', methods=['POST'])
 def upload_github_url():
-    url = request.form.get('url')
-    if not url:
-        return jsonify({"error": "No GitHub URL provided"}), 400
-    
-    # Validate GitHub URL format
-    if not url.startswith(('http://', 'https://')) or 'github.com' not in url:
-        return jsonify({"error": "Invalid GitHub URL format"}), 400
-    
+    """Process a GitHub repository URL"""
     try:
+        url = request.form.get('url')
+        if not url:
+            return jsonify({"error": "No URL provided"}), 400
+        
+        # Analyze the repository
         code = analyze_github_repo(url)
-        return jsonify({"success": True, "code": code})
-    except Exception as e:
-        return jsonify({"error": f"Error analyzing GitHub repository: {str(e)}"}), 400
-
-# Analytics endpoint
-@routes_blueprint.route("/analytics", methods=["GET"])
-def get_analytics():
-    """Get aggregate analytics: total students, total assessments, average score."""
-    try:
-        total_students = Student.query.count()
-        total_assessments = Assessment.query.count()
+        if not code:
+            return jsonify({"error": "No code found in repository"}), 400
         
-        # Calculate average score across all student assessments
-        avg_score = None
-        total_scores = 0
-        score_count = 0
-        student_assessments = StudentAssessment.query.all()
-        
-        for sa in student_assessments:
-            if sa.scores:  # Check if scores dictionary exists
-                # Calculate average of all scores for this assessment
-                assessment_scores = [
-                    score for score in sa.scores.values() 
-                    if isinstance(score, (int, float))
-                ]
-                if assessment_scores:
-                    total_scores += sum(assessment_scores) / len(assessment_scores)
-                    score_count += 1
-        
-        if score_count > 0:
-            avg_score = round(total_scores / score_count, 2)
-            
         return jsonify({
             "success": True,
-            "total_students": total_students,
-            "total_assessments": total_assessments,
-            "average_score": avg_score
-        })
-    except Exception as e:
-        print(f"Analytics error: {str(e)}")  # Add logging for debugging
-        return jsonify({"success": False, "error": str(e)}), 500
-
-# Student routes
-@routes_blueprint.route("/students", methods=["GET"])
-def get_students():
-    """Get all students with their assessment counts"""
-    try:
-        students = Student.query.all()
-        return jsonify({
-            "success": True,
-            "students": [student.to_dict() for student in students]
+            "code": code
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@routes_blueprint.route("/students/<int:student_id>", methods=["GET"])
+@routes_blueprint.route('/upload_rubric', methods=['POST'])
+def upload_rubric():
+    """Process a rubric file"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({"error": "No file provided"}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No file selected"}), 400
+        
+        # Read the rubric file
+        rubric = file.read().decode('utf-8')
+        
+        return jsonify({
+            "success": True,
+            "rubric": rubric
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@routes_blueprint.route('/api/students', methods=['GET'])
+def get_students():
+    """Get all students"""
+    try:
+        students = Student.query.all()
+        return jsonify({
+            "success": True,
+            "students": [s.to_dict() for s in students]
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@routes_blueprint.route('/api/students/<int:student_id>', methods=['GET'])
 def get_student(student_id):
-    """Get a specific student with their assessment history"""
+    """Get a specific student"""
     try:
         student = Student.query.get_or_404(student_id)
         return jsonify({
             "success": True,
             "student": student.to_dict_with_assessments()
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@routes_blueprint.route('/api/analytics', methods=['GET'])
+def get_analytics():
+    """Get analytics data"""
+    try:
+        # Get all assessments
+        assessments = Assessment.query.all()
+        
+        # Calculate analytics
+        total_assessments = len(assessments)
+        total_students = Student.query.count()
+        total_submissions = StudentAssessment.query.count()
+        
+        # Get average scores
+        scores = []
+        for assessment in assessments:
+            for student_assessment in assessment.student_assessments:
+                if student_assessment.scores:
+                    avg_score = student_assessment._calculate_average_score()
+                    if avg_score > 0:
+                        scores.append(avg_score)
+        
+        avg_score = sum(scores) / len(scores) if scores else 0
+        
+        return jsonify({
+            "success": True,
+            "analytics": {
+                "total_assessments": total_assessments,
+                "total_students": total_students,
+                "total_submissions": total_submissions,
+                "average_score": round(avg_score, 2)
+            }
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

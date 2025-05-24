@@ -20,20 +20,28 @@ def analyze_github_repo(url):
         user_repo = '/'.join(url.split('/')[-2:])
         for branch in ['main', 'master']:
             zip_url = f"https://github.com/{user_repo}/archive/refs/heads/{branch}.zip"
+            r = requests.get(zip_url)
+            if r.status_code == 404:
+                continue  # Try next branch
+            elif r.status_code != 200:
+                return f"Failed to download repo zip for branch '{branch}': Status code {r.status_code}"
             with tempfile.TemporaryDirectory() as tmpdir:
                 zip_path = os.path.join(tmpdir, 'repo.zip')
-                r = requests.get(zip_url)
-                if r.status_code != 200:
-                    continue  # Try next branch
                 with open(zip_path, 'wb') as f:
                     f.write(r.content)
-                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                    zip_ref.extractall(tmpdir)
+                try:
+                    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                        zip_ref.extractall(tmpdir)
+                except zipfile.BadZipFile:
+                    return "Error: Could not extract the zip file (BadZipFile)"
                 code = ""
                 for ext in ['py', 'js', 'java', 'cpp', 'c', 'ts', 'rb', 'go', 'php']:
                     for file in glob.glob(os.path.join(tmpdir, '**', f'*.{ext}'), recursive=True):
-                        with open(file, 'r', encoding='utf-8', errors='ignore') as f:
-                            code += f.read() + '\n\n'
+                        try:
+                            with open(file, 'r', encoding='utf-8', errors='ignore') as f:
+                                code += f.read() + '\n\n'
+                        except Exception as e:
+                            print(f"Warning: Could not read file {file}: {e}")
                 if not code:
                     return "No code files found in repo."
                 return code[:10000]  # Limit to 10,000 chars for safety
