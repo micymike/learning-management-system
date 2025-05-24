@@ -45,6 +45,14 @@ class RAGAssessor:
                 search_kwargs={"k": 5}  # Retrieve top 5 most relevant documents
             )
         )
+        
+        # Format expected by the frontend
+        self.output_format = {
+            "criterion": {
+                "mark": "score",
+                "justification": "explanation"
+            }
+        }
     
     def extract_student_info(self, github_url):
         """Extract student information from GitHub URL"""
@@ -112,38 +120,43 @@ class RAGAssessor:
         except:
             raise ValueError("Could not parse assessment response")
     
-    def assess_code(self, github_url, rubric):
+    def assess_code(self, code, rubric):
         """
-        Assess code from a GitHub repository using RAG approach
+        Assess code using RAG approach with similar examples
         
         Args:
-            github_url (str): URL of the GitHub repository to assess
+            code (str): The code to assess (can be direct code or GitHub URL)
             rubric (str): The rubric to use for assessment
             
         Returns:
-            dict: Dictionary of assessments and scores for each criterion
+            dict: Dictionary of scores and justifications for each criterion
         """
         try:
-            # Get student info from GitHub URL
-            student_info = self.extract_student_info(github_url)
-            if not student_info:
-                raise ValueError(f"Invalid GitHub URL format: {github_url}")
-            
-            # Analyze GitHub repository
-            code = analyze_repo(github_url)
-            if not code or code == "No code files found in repo.":
-                raise ValueError(f"No code found in repository: {github_url}")
+            # Check if input is a GitHub URL
+            code_to_assess = code
+            student_info = None
+            if code.startswith(('http://', 'https://')) and 'github.com' in code:
+                student_info = self.extract_student_info(code)
+                if not student_info:
+                    raise ValueError(f"Invalid GitHub URL format: {code}")
+                
+                # Analyze GitHub repository
+                code_to_assess = analyze_repo(code)
+                if not code_to_assess or code_to_assess == "No code files found in repo.":
+                    raise ValueError(f"No code found in repository: {code}")
             
             # First, search for similar rubrics to ensure we have context
             similar_docs = self.vectorstore.similarity_search(
                 rubric,
-                k=2
+                k=2,
+                filter={"type": "rubric"}
             )
             
             # Then search for similar examples
             similar_examples = self.vectorstore.similarity_search(
-                code[:1000],  # Use first 1000 chars of code for search
-                k=3
+                code_to_assess[:1000],  # Use first 1000 chars of code for search
+                k=3,
+                filter={"type": "example", "has_scores": True}
             )
             
             # Combine the context from similar rubrics and examples
@@ -151,15 +164,12 @@ class RAGAssessor:
             if similar_docs:
                 context += "SIMILAR RUBRICS:\n"
                 for i, doc in enumerate(similar_docs):
-                    if hasattr(doc.metadata, 'type') and doc.metadata['type'] == 'rubric':
-                        context += f"Rubric {i+1}:\n{doc.page_content}\n\n"
+                    context += f"Rubric {i+1}:\n{doc.page_content}\n\n"
             
             if similar_examples:
                 context += "SIMILAR EXAMPLES WITH SCORES:\n"
                 for i, doc in enumerate(similar_examples):
-                    if (hasattr(doc.metadata, 'type') and doc.metadata['type'] == 'example' and
-                        hasattr(doc.metadata, 'has_scores') and doc.metadata['has_scores']):
-                        context += f"Example {i+1}:\n{doc.page_content}\n\n"
+                    context += f"Example {i+1}:\n{doc.page_content}\n\n"
             
             # Parse rubric to extract scoring levels
             main_criterion = None
@@ -182,10 +192,14 @@ class RAGAssessor:
                     scoring_levels[mark] = description
             
             # Create the assessment prompt
+            if student_info:
+                code_source = f"GitHub repository: {student_info['github_url']}\nStudent: {student_info['username']}\nRepository: {student_info['repo_name']}"
+            else:
+                code_source = "Direct code submission"
+                
             query = f"""
-            Assess the code from GitHub repository: {github_url}
-            Student: {student_info['username']}
-            Repository: {student_info['repo_name']}
+            Assess the following code:
+            Source: {code_source}
 
             RUBRIC CRITERION:
             {main_criterion}
@@ -194,7 +208,7 @@ class RAGAssessor:
             {json.dumps(scoring_levels, indent=2)}
             
             CODE TO ASSESS:
-            {code[:5000]}
+            {code_to_assess[:5000]}
             
             SIMILAR ASSESSMENTS FOR REFERENCE:
             {context}
@@ -227,20 +241,25 @@ class RAGAssessor:
             try:
                 result = self.extract_json_from_response(response)
                 
-                # Return the assessment with student info
-                return {
-                    "student": {
+                # Format the result to match frontend expectations
+                assessment_result = {
+                    main_criterion: {
+                        "mark": result["assessment"]["selected_mark"],
+                        "justification": result["assessment"]["justification"] + "\n\nKey Observations:\n" + 
+                                      "\n".join(f"- {obs}" for obs in result["assessment"]["key_observations"])
+                    }
+                }
+                
+                # Add student info if available
+                if student_info:
+                    assessment_result["student"] = {
                         "name": student_info["username"],
                         "github_username": student_info["username"],
                         "repository_name": student_info["repo_name"],
                         "repository_url": student_info["github_url"]
-                    },
-                    "criterion": main_criterion,
-                    "mark": result["assessment"]["selected_mark"],
-                    "level": result["assessment"]["level_description"],
-                    "justification": result["assessment"]["justification"],
-                    "observations": result["assessment"]["key_observations"]
-                }
+                    }
+                
+                return assessment_result
             except Exception as e:
                 raise ValueError(f"Error parsing assessment response: {str(e)}")
         except Exception as e:

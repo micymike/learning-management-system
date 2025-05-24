@@ -2,7 +2,7 @@
  * API service for making HTTP requests to the backend
  */
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 /**
  * Generic fetch wrapper with error handling
@@ -67,7 +67,7 @@ export const assessApi = {
   // Get all assessments from the backend
   getAssessments: async () => {
     try {
-      const response = await fetchWithErrorHandling(`${API_URL}/assessments`, {
+      const response = await fetchWithErrorHandling(`${API_URL}/api/assessments`, {
         method: 'GET',
         credentials: 'include'
       });
@@ -102,7 +102,7 @@ export const assessApi = {
     try {
       // First try to get from backend
       try {
-        const response = await fetchWithErrorHandling(`${API_URL}/assessments/${id}`, {
+        const response = await fetchWithErrorHandling(`${API_URL}/api/assessments/${id}`, {
           method: 'GET',
           credentials: 'include'
         });
@@ -154,7 +154,7 @@ export const assessApi = {
   // Assess code with rubric
   assess: (code, rubric) => {
     const formData = createFormData({ code, rubric });
-    return fetchWithErrorHandling(`${API_URL}/assess`, {
+    return fetchWithErrorHandling(`${API_URL}/api/assess`, {
       method: 'POST',
       body: formData,
     });
@@ -183,7 +183,7 @@ export const assessApi = {
     
     try {
       // Try to use the backend API
-      const response = await fetchWithErrorHandling(`${API_URL}/upload_csv`, {
+      const response = await fetchWithErrorHandling(`${API_URL}/api/upload_csv`, {
         method: 'POST',
         body: formData,
         credentials: 'include'
@@ -212,137 +212,14 @@ export const assessApi = {
       return response;
     } catch (error) {
       console.error('Failed to process CSV with API:', error);
-      
-      // Fallback to local processing if API call fails
-      console.log('Using local processing fallback');
-      
-      try {
-        // Read the CSV file content
-        const csvContent = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (event) => resolve(event.target.result);
-          reader.onerror = () => reject(new Error('Error reading CSV file'));
-          reader.readAsText(file);
-        });
-
-        // Get rubric content based on type
-        const rubricContent = await new Promise((resolve, reject) => {
-          if (rubric instanceof File) {
-            const reader = new FileReader();
-            reader.onload = (event) => resolve(event.target.result);
-            reader.onerror = () => reject(new Error('Error reading rubric file'));
-            reader.readAsText(rubric);
-          } else if (typeof rubric === 'string') {
-            resolve(rubric);
-          } else {
-            resolve("Code Quality\nFunctionality\nBest Practices");
-          }
-        });
-        
-        // Parse CSV content (simple parser)
-        const lines = csvContent.split('\n').filter(line => line.trim());
-        if (lines.length === 0) {
-          throw new Error('CSV file is empty');
-        }
-        
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-        
-        // Check if required headers exist
-        if (!headers.includes('name') && !headers.includes('student')) {
-          throw new Error('CSV must contain a "name" or "student" column');
-        }
-        
-        if (!headers.includes('repo_url') && !headers.includes('github')) {
-          throw new Error('CSV must contain a "repo_url" or "github" column');
-        }
-        
-        // Parse the rubric into criteria
-        const rubricLines = rubricContent.split('\n').filter(line => line.trim());
-        if (rubricLines.length === 0) {
-          throw new Error('Rubric cannot be empty');
-        }
-        
-        // Generate results based on student data
-        const results = [];
-        for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split(',').map(v => v.trim());
-          if (values.length < 2) continue; // Skip invalid lines
-          
-          const student = {};
-          headers.forEach((header, index) => {
-            if (index < values.length) {
-              student[header] = values[index];
-            }
-          });
-          
-          // Ensure we have name and repo_url
-          if (!student.name && student.student) {
-            student.name = student.student;
-          }
-          
-          if (!student.repo_url && student.github) {
-            student.repo_url = student.github;
-          }
-          
-          // In a real implementation, we would call the backend API to assess the code
-          // For now, we'll create placeholder results that clearly indicate they need assessment
-          
-          // Create a placeholder assessment report
-          let report = "### Assessment Pending\n\n";
-          report += "This student's code needs to be assessed based on the following criteria:\n\n";
-          
-          rubricLines.forEach(criterion => {
-            if (!criterion.trim()) return;
-            report += `- ${criterion.trim()}\n`;
-          });
-          
-          report += "\n**Note:** This is a placeholder. In a production environment, the actual code would be assessed against the rubric.";
-          
-          results.push({
-            name: student.name || `Student ${i}`,
-            repo_url: student.repo_url || '',
-            group: student.group || 'Unassigned',
-            score: 'Pending',
-            status: 'Needs Assessment',
-            report: report
-          });
-        }
-        
-        // Create a new assessment with a proper name
-        const newAssessment = {
-          id: Date.now().toString(),
-          name: assessmentName && assessmentName.trim() !== '' 
-            ? assessmentName 
-            : 'Assessment ' + new Date().toLocaleDateString(),
-          createdAt: new Date().toISOString(),
-          status: 'Pending Assessment',
-          rubric: rubricContent,
-          results: results
-        };
-        
-        // Save to localStorage
-        const savedAssessments = localStorage.getItem('savedAssessments');
-        const assessments = savedAssessments ? JSON.parse(savedAssessments) : [];
-        assessments.push(newAssessment);
-        localStorage.setItem('savedAssessments', JSON.stringify(assessments));
-        
-        return {
-          success: true,
-          message: 'Assessment created successfully (local fallback)',
-          results: results,
-          assessment: newAssessment
-        };
-      } catch (fallbackError) {
-        console.error('Local processing failed:', fallbackError);
-        throw new Error('Failed to process CSV file: ' + (fallbackError.message || 'Unknown error'));
-      }
+      throw error;
     }
   },
 
   // Download Excel for a specific assessment
   downloadExcel: async (assessmentId) => {
     try {
-      const response = await fetch(`${API_URL}/download_excel/${assessmentId}`, {
+      const response = await fetch(`${API_URL}/api/download_excel/${assessmentId}`, {
         method: 'GET',
         credentials: 'include'
       });
@@ -372,7 +249,7 @@ export const assessApi = {
   // Upload rubric file
   uploadRubric: (file) => {
     const formData = createFormData({ file });
-    return fetchWithErrorHandling(`${API_URL}/upload_rubric`, {
+    return fetchWithErrorHandling(`${API_URL}/api/upload_rubric`, {
       method: 'POST',
       body: formData,
     });
@@ -381,7 +258,7 @@ export const assessApi = {
   // Submit GitHub URL for analysis
   uploadGithubUrl: (url) => {
     const formData = createFormData({ url });
-    return fetchWithErrorHandling(`${API_URL}/upload_github_url`, {
+    return fetchWithErrorHandling(`${API_URL}/api/upload_github_url`, {
       method: 'POST',
       body: formData,
     });
@@ -390,7 +267,7 @@ export const assessApi = {
   // Student-related methods
   getStudents: async () => {
     try {
-      const response = await fetchWithErrorHandling(`${API_URL}/students`, {
+      const response = await fetchWithErrorHandling(`${API_URL}/api/students`, {
         method: 'GET',
         credentials: 'include'
       });
@@ -404,7 +281,7 @@ export const assessApi = {
   
   getStudent: async (studentId) => {
     try {
-      const response = await fetchWithErrorHandling(`${API_URL}/students/${studentId}`, {
+      const response = await fetchWithErrorHandling(`${API_URL}/api/students/${studentId}`, {
         method: 'GET',
         credentials: 'include'
       });
@@ -419,7 +296,7 @@ export const assessApi = {
   // Analytics
   getAnalytics: async () => {
     try {
-      const response = await fetchWithErrorHandling(`${API_URL}/analytics`, {
+      const response = await fetchWithErrorHandling(`${API_URL}/api/analytics`, {
         method: 'GET',
         credentials: 'include'
       });
