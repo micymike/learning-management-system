@@ -1,0 +1,85 @@
+CRITERIA,SCORES,,,,,POINTS
+Database Set up,"(5 Marks)
+
+Your project has a functional database for storing game data, including tables for games and moves. All tables that is connected to the project.
+
+","(3 Marks)
+
+Your project has a functional database for storing game data, including tables for games and moves but not all tables are connected to the project.
+
+",,"(1 Mark)
+
+Your project has a functional database but it's not connected to the project and does not store data. ","(0 Marks)
+
+Your project has no functional database.
+
+",5
+Backend API endpoints.,"(5 Marks)
+
+Your project has API endpoints to handle game creation, move placement, and game termination and uses Express middleware to handle requests and responses.
+","(3 Marks)
+
+Your project has API endpoints to handle game creation, move placement, and game termination but does not use Express middleware to handle requests and responses.
+",,"(1 Mark)
+
+Your project has API endpoints to handle game creation, move placement, and game termination but does not accurately handle all requests and responses.
+","(0 Marks)
+
+No use of API end points.
+",5
+Integration of the frontend with the backend,"(3 Marks)
+
+Frontend code interacts with the backend API endpoints and use AJAX requests.",,,"(1 Marks)
+
+Frontend code does not interact with all backend API endpoints.","(0 Marks)
+
+Frontend code does not interact with the backend APIs.",3
+Implementation of Node.js server,"(5 Marks)
+
+The game has Node.js implementation that handles requests and responses for the Tic Tac Toe game.","(3 Marks)
+
+The game has Node.js implementation but it does not accurately handle requests and responses for the Tic Tac Toe game.","
+","(1 Marks)
+
+The game has Node.js implementation but it handles half or less of the requests from the game.","(0 Marks)
+
+The game has no Node.js server implementation.",5
+"Use of MySQL for storing user data and game data
+","(5 Marks)
+
+The game uses MYSQL to store data.","(3 Marks)
+
+The game has MSQL implemented but does not store all the data..",,,"(0 Marks)
+
+The game has no implementation of MYSQL.",5
+Use of MongoDB for storing game data and log data	,"(5 Marks)
+
+The game used MongoDB to store game and log data.","(3 Marks)
+
+The game used MongoDB but does not accurately store game and log data.",,,"(0 Marks)
+
+The game does not use MongoDB to store any data.",5
+Git Collaboration,"(3 Marks)
+
+The student contributed to the group's GitHub repository with different branches, working on each branch separtely and merging them to the main branch.","(2 Marks)
+
+The student contributed to the group's GitHub repository but used only 1 branch for all featutes.
+
+","(1 Marks)
+
+The student contributed to the group's GitHub repository with different branches but their work was not merged to the main branch.",,"(0 Marks)
+
+The student did not contribute to the group's github repository. Their branch and commits are missing.",3
+Code is well-organized and follows best practices,"(2 Marks)
+
+Use of modular and reusable components, adherence to React best practices, and code readability.
+",,,"(1 Mark) 
+
+Code is not well organized. Does not appropriately Use of modular and reusable components, adherence to React best practices, and code readability.",,2
+GitHub Pages,"(3 Marks)
+
+The students have deployed the completed work on GitHub Pages.","(1 Marks)
+
+The students have deployed the completed work on GitHub Pages but the link is missing/disfunctional.",,,,3
+,,,,,,Total: 36
+"NB: To pass, you MUST attain a score at 80% and above.	",,,,,,

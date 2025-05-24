@@ -14,8 +14,8 @@ A web-based application that automates the grading of coding assignments submitt
 ## Tech Stack
 
 ### Backend
-- Python with FastAPI
-- SQLite database
+- Python with Flask
+- MongoDB database
 - GitPython for repository interaction
 - Pandas for data processing and report generation
 
@@ -27,11 +27,19 @@ A web-based application that automates the grading of coding assignments submitt
 
 ## Environment Variables
 
+### Backend (.env file)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| MONGODB_URI | MongoDB connection string | mongodb://localhost:27017/learning_management_system |
+| OPENAI_API_KEY | OpenAI API key for AI grading | - |
+| SECRET_KEY | Secret key for Flask sessions | your_secret_key |
+
 ### Frontend (.env file)
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| VITE_API_URL | URL of the backend API | http://localhost:5000/api |
+| VITE_API_URL | URL of the backend API | http://localhost:8000 |
 
 You can copy the `.env.example` file to create your own `.env` file:
 ```
@@ -44,6 +52,7 @@ cp frontend/.env.example frontend/.env
 - Node.js (v14+)
 - Python (v3.8+)
 - Git
+- MongoDB (v4.4+)
 
 ### Backend Setup
 
@@ -72,13 +81,18 @@ cp frontend/.env.example frontend/.env
    pip install -r requirements.txt
    ```
 
-5. Run the backend server:
-   ```
-   python run.py
-   ```
-   The API will be available at http://localhost:5000/api
+5. Set up MongoDB:
+   - Install MongoDB locally or use a cloud service like MongoDB Atlas
+   - Update the `.env` file with your MongoDB connection string:
+     ```
+     MONGODB_URI=mongodb://localhost:27017/learning_management_system
+     ```
 
-   > **Note:** The frontend is configured to connect to the backend at http://localhost:5000/api by default. If you need to change this, update the `VITE_API_URL` in the frontend's `.env` file.
+6. Run the backend server:
+   ```
+   python main.py
+   ```
+   The API will be available at http://localhost:8000
 
 ### Frontend Setup
 

@@ -1,23 +1,19 @@
 from datetime import datetime
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.dialects.postgresql import JSON
+from mongoengine import Document, StringField, DateTimeField, IntField, ReferenceField, DictField, ListField, connect
 
-db = SQLAlchemy()
+# MongoDB connection will be established in main.py
 
-class Assessment(db.Model):
-    __tablename__ = 'assessments'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-    date = db.Column(db.DateTime, default=datetime.utcnow)
-    rubric = db.Column(db.Text, nullable=False)
-    results = db.Column(JSON)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
+class Assessment(Document):
+    name = StringField(required=True)
+    date = DateTimeField(default=datetime.utcnow)
+    rubric = StringField(required=True)
+    results = ListField(DictField())
+    created_at = DateTimeField(default=datetime.utcnow)
+    updated_at = DateTimeField(default=datetime.utcnow)
+    
     def to_dict(self):
         return {
-            'id': self.id,
+            'id': str(self.id),
             'name': self.name,
             'date': self.date.isoformat() if self.date else None,
             'rubric': self.rubric,
@@ -26,55 +22,44 @@ class Assessment(db.Model):
             'updated_at': self.updated_at.isoformat()
         }
 
-class Student(db.Model):
-    __tablename__ = 'students'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-    email = db.Column(db.String(255), unique=True, nullable=True)
-    github_username = db.Column(db.String(255), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+class Student(Document):
+    name = StringField(required=True)
+    email = StringField()
+    github_username = StringField()
+    created_at = DateTimeField(default=datetime.utcnow)
+    updated_at = DateTimeField(default=datetime.utcnow)
     
-    # Relationship with StudentAssessment
-    assessments = db.relationship('StudentAssessment', back_populates='student', cascade='all, delete-orphan')
-
     def to_dict(self):
+        assessments = StudentAssessment.objects(student=self)
         return {
-            'id': self.id,
+            'id': str(self.id),
             'name': self.name,
             'email': self.email,
             'github_username': self.github_username,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat(),
-            'assessment_count': len(self.assessments)
+            'assessment_count': len(assessments)
         }
     
     def to_dict_with_assessments(self):
         result = self.to_dict()
-        result['assessments'] = [sa.to_dict() for sa in self.assessments]
+        assessments = StudentAssessment.objects(student=self)
+        result['assessments'] = [sa.to_dict() for sa in assessments]
         return result
 
-class StudentAssessment(db.Model):
-    __tablename__ = 'student_assessments'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
-    assessment_id = db.Column(db.Integer, db.ForeignKey('assessments.id'), nullable=False)
-    scores = db.Column(JSON)
-    repo_url = db.Column(db.String(255), nullable=True)
-    submission = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relationships
-    student = db.relationship('Student', back_populates='assessments')
-    assessment = db.relationship('Assessment')
+class StudentAssessment(Document):
+    student = ReferenceField(Student, required=True)
+    assessment = ReferenceField(Assessment, required=True)
+    scores = DictField()
+    repo_url = StringField()
+    submission = StringField()
+    created_at = DateTimeField(default=datetime.utcnow)
     
     def to_dict(self):
         return {
-            'id': self.id,
-            'student_id': self.student_id,
-            'assessment_id': self.assessment_id,
+            'id': str(self.id),
+            'student_id': str(self.student.id),
+            'assessment_id': str(self.assessment.id),
             'assessment_name': self.assessment.name if self.assessment else None,
             'scores': self.scores,
             'repo_url': self.repo_url,
@@ -85,5 +70,16 @@ class StudentAssessment(db.Model):
     def _calculate_average_score(self):
         if not self.scores:
             return 0
+            
+        # Check if we have the new format with criteria_scores
+        if 'criteria_scores' in self.scores:
+            if 'percentage' in self.scores:
+                return self.scores['percentage']
+            elif self.scores.get('max_points', 0) > 0:
+                return (self.scores['total_points'] / self.scores['max_points']) * 100
+            else:
+                return 0
+        
+        # Legacy format - direct scores
         scores = [score for score in self.scores.values() if isinstance(score, (int, float))]
         return sum(scores) / len(scores) if scores else 0

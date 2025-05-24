@@ -1,0 +1,109 @@
+CRITERIA,SCORES,,,,,POINTS
+Requirements,"(5 Marks)
+
+All requirements are met with high quality implementation.
+
+Examples under this category: 
+https://www.garysheng.com/
+https://www.quinntonharris.com/about","(3 Marks)
+
+All requirements are met, but implementation quality is average.
+
+Only half of the requirements are met with high quality.
+
+Examples under this category:
+https://kenya.craigslist.org/","(2 Marks)
+
+Most requirements are met, but implementation quality is below average.
+
+Less than half of the requirements are met with high quality.
+
+Examples under this category:
+
+https://www.art.yale.edu/","(1 Marks)
+
+More than half of the requirements are missing or their implementation quality is very poor.
+
+Examples under this category:
+https://thebiguglywebsite.com/
+https://www.theworldsworstwebsiteever.com/","(0 Marks)
+
+No requirements are met.",5
+HTML Tags,"(5 Marks)
+
+Page incorporates all of the required HTML tags with clean, proper syntax.","(3 Marks)
+
+At least 5 HTML tags are present with clean, proper syntax.","(2 Marks)
+
+Some of the required HTML tags are present, but with less than ideal markup.
+
+Less than 5 HTML tags are included, with clean semantic markup.","(1 Marks)
+
+Few of the required HTML tags are present and/or syntax is correct.","(0 Marks)
+
+No HTML tags are incorporated.",5
+Custom CSS,"(5 Marks)
+
+Page incorporates a custom-made stylesheet that effectively uses cascading, the box model, and floats, columns, media queries, grid layouts, cards, colors, and animations","(3 Marks)
+
+Page incorporates a custom-made stylesheet that uses at least half of the required CSS concepts, using the proper implementation.
+
+Page incorporates a custom-made stylesheet that uses at least half but implementation is not perfect.","(2 Marks)
+
+Page incorporates a custom-made stylesheet, but it is not effectively using the required CSS concepts, such as the box model, floats etc.","(1 Marks)
+
+Minimal CSS is present. 2 or less concepts implemented using CSS.",0,5
+Tailwind CSS,"(3 Marks)
+
+Page effectively incorporates Tailwind in the implementation of hamburger icons, Theme configuration, or other elements as appropriate","(2 Marks)
+
+Page incorporates Tailwind, but implementation is not effective or is incomplete.
+
+Page incorporates Tailwind CSS in the implementation of less than 2 elements.","(1 Marks)
+
+Page attempts to incorporate Tailwind, but implementation is not effective or the implementation is inappropriate.","(0 Marks)
+
+No Tailwind CSS is present or implementation is completely incorrect",,3
+Indentation and Spacing,"(3 Marks)
+
+Indentation and spacing of HTML and CSS is accurate, consistent, and enhances readability.","(2 Marks)
+
+Indentation and spacing of HTML and CSS is mostly accurate and consistent, but has some issues that could be improved.
+","(1 Marks)
+
+Indentation and spacing of HTML and CSS is somewhat inconsistent, making the code less readable.","(0 Marks)
+
+Indentation and spacing of HTML and CSS is largely incorrect or absent",,3
+GitHub Repository,"(3 Marks)
+
+Projects’ code is pushed to a GitHub repository with at least 10 clear messages associated with regular commits.","(1 Marks)
+
+Projects’ code is pushed to a GitHub repository with less than 10 commits and messages, but not all code is available.
+
+Projects’ code is pushed to a GitHub repository, with required 10 commits but the messages are unclear.","(0 Marks)
+
+No GitHub repository or code is not available",,,3
+Deployment,"(3 Marks)
+
+Project is deployed to GitHub Pages with a live site available at your-username.github.io/portfolio","(1 Marks)
+
+Project is deployed to GitHub Pages, but site is not live or has issues/redirects to an error page.
+","(0 Marks)
+
+No deployment to GitHub Pages or other platform is attempted",,,3
+Objectives,"(5 Marks)
+
+
+All objectives are met with high quality implementation","(3 Marks)
+
+All objectives are met, but implementation quality is average.
+
+At least half of objectives are met, with high quality implementation.","(2 Marks)
+
+More than half of the objectives are met, but implementation quality is below average","(1 Marks)
+
+More than half of the objectives are not met or implementation quality is very poor.","(4 Marks)
+
+No objective has been met.",5
+,,,,,,Total: 32
+"NB: To pass, you MUST attain a score at 80% and above.",,,,,,

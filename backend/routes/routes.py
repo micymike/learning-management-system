@@ -12,10 +12,10 @@ from datetime import datetime
 from AI_assessor import assess_code, client
 from repo_analyzer import analyze_github_repo
 from csv_analyzer import process_csv
-from rubric_handler import load_rubric
+from rubric_handler import load_rubric, parse_rubric_lines, calculate_percentage, is_passing_grade
 import openai
 from dotenv import load_dotenv
-from models import db, Assessment, Student, StudentAssessment
+from models import Assessment, Student, StudentAssessment
 
 load_dotenv()
 
@@ -35,32 +35,38 @@ def format_scores_results(results):
     if not results:
         return io.BytesIO()
 
-    # Extract all criteria from the results to ensure consistent columns
-    criteria = set()
-    for result in results:
-        try:
-            criteria.update(result['scores'].keys())
-        except Exception as e:
-            print(f"Error extracting criteria: {e}")
-    
     scores_data = []
     for result in results:
+        # Basic student info
         scores = {
             'Name': result['name'],
             'Repository': result['repo_url']
         }
         
-        # Add all criteria scores, properly formatting structured scores
-        for criterion in criteria:
-            score_value = result.get('scores', {}).get(criterion, 0)
-            
-            # Check if this is a structured score with mark and justification
-            if isinstance(score_value, dict) and 'mark' in score_value:
-                scores[f"{criterion} (Mark)"] = score_value.get('mark', 'N/A')
-                scores[f"{criterion} (Justification)"] = score_value.get('justification', '')
-            else:
-                scores[criterion] = score_value
+        # Check if we have the new format with criteria_scores
+        if 'scores' in result and isinstance(result['scores'], dict):
+            if 'criteria_scores' in result['scores']:
+                # New format with points
+                criteria_scores = result['scores']['criteria_scores']
+                for criterion, data in criteria_scores.items():
+                    scores[f"{criterion} (Points)"] = f"{data.get('points', 0)}/{data.get('max_points', 0)}"
+                    if 'justification' in data:
+                        scores[f"{criterion} (Justification)"] = data['justification']
                 
+                # Add summary data
+                scores['Total Points'] = f"{result['scores'].get('total_points', 0)}/{result['scores'].get('max_points', 0)}"
+                scores['Percentage'] = f"{result['scores'].get('percentage', 0)}%"
+                scores['Status'] = "PASS" if result['scores'].get('passing', False) else "FAIL"
+            else:
+                # Legacy format or simple scores
+                for criterion, score_value in result['scores'].items():
+                    # Check if this is a structured score with mark and justification
+                    if isinstance(score_value, dict) and 'mark' in score_value:
+                        scores[f"{criterion} (Mark)"] = score_value.get('mark', 'N/A')
+                        scores[f"{criterion} (Justification)"] = score_value.get('justification', '')
+                    else:
+                        scores[criterion] = score_value
+        
         scores_data.append(scores)
     
     df = pd.DataFrame(scores_data)
@@ -149,6 +155,67 @@ def validate_csv_content(students):
 
 routes_blueprint = Blueprint('routes', __name__)
 
+@routes_blueprint.route("/rubric_templates", methods=["GET"])
+def get_rubric_templates():
+    """Get available rubric templates"""
+    templates = [
+        {
+            "name": "Standard Rubric",
+            "path": "sample_rubric.txt",
+            "description": "Basic rubric with points for each criterion"
+        },
+        {
+            "name": "Structured Module Exam Rubric",
+            "path": "structured_rubric_example.txt",
+            "description": "Comprehensive rubric with detailed criteria and point allocation"
+        }
+    ]
+    
+    return jsonify({
+        "success": True,
+        "templates": templates
+    })
+
+@routes_blueprint.route("/rubric_templates/<template_name>", methods=["GET"])
+def get_rubric_template(template_name):
+    """Get a specific rubric template content"""
+    template_path = None
+    
+    if template_name == "standard":
+        template_path = "sample_rubric.txt"
+    elif template_name == "structured":
+        template_path = "structured_rubric_example.txt"
+    else:
+        return jsonify({"error": "Template not found"}), 404
+    
+    try:
+        with open(os.path.join(os.path.dirname(os.path.dirname(__file__)), template_path), 'r') as f:
+            content = f.read()
+        
+        # Parse rubric to get points information
+        try:
+            rubric_items = parse_rubric_lines(content.strip().split('\n'))
+            total_points = sum(item['max_points'] for item in rubric_items)
+            passing_threshold = total_points * 0.8  # 80% passing threshold
+            
+            return jsonify({
+                "success": True,
+                "template_name": template_name,
+                "content": content,
+                "parsed_rubric": rubric_items,
+                "total_points": total_points,
+                "passing_threshold": passing_threshold
+            })
+        except:
+            # If parsing fails, still return the content
+            return jsonify({
+                "success": True,
+                "template_name": template_name,
+                "content": content
+            })
+    except Exception as e:
+        return jsonify({"error": f"Error reading template: {str(e)}"}), 500
+
 @routes_blueprint.route("/assess", methods=["POST"])
 def assess():
     code = request.form.get('code')
@@ -162,8 +229,21 @@ def assess():
     if not is_valid:
         return jsonify({"error": error_msg}), 400
     
-    result = assess_code(code, rubric, client)
-    return jsonify({"result": result})
+    # Parse rubric to get criteria with points
+    try:
+        rubric_items = parse_rubric_lines(rubric.strip().split('\n'))
+        result = assess_code(code, rubric_items, client)
+    except Exception as e:
+        # If parsing fails, use the raw rubric text
+        result = assess_code(code, rubric, client)
+    
+    return jsonify({
+        "result": result,
+        "passing": result.get('passing', False),
+        "percentage": result.get('percentage', 0),
+        "total_points": result.get('total_points', 0),
+        "max_points": result.get('max_points', 0)
+    })
 
 @routes_blueprint.route("/upload_csv", methods=["POST"])
 def upload_csv():
@@ -249,11 +329,10 @@ def upload_csv():
         repo_url = student['repo_url']
         
         # Find or create student record
-        student_record = Student.query.filter_by(name=name).first()
+        student_record = Student.objects(name=name).first()
         if not student_record:
             student_record = Student(name=name)
-            db.session.add(student_record)
-            db.session.flush()  # Get ID without committing
+            student_record.save()
         
         # Analyze the repo and get code
         try:
@@ -290,32 +369,64 @@ def upload_csv():
             continue
         
         # Parse assessment results
-        scores = {}
         if isinstance(assessment, dict):
             scores = assessment
         else:
+            # Legacy format handling
             assessment_lines = [line.strip() for line in assessment.split('\n')]
+            scores = {
+                'criteria_scores': {},
+                'total_points': 0,
+                'max_points': 0,
+                'percentage': 0,
+                'passing': False
+            }
+            
             for line in assessment_lines:
                 if ',' in line:
                     try:
                         criterion, score = line.split(',', 1)
-                        scores[criterion.strip()] = int(score.strip())
+                        points = int(score.strip())
+                        scores['criteria_scores'][criterion.strip()] = {
+                            'points': points,
+                            'max_points': 10  # Default max points
+                        }
+                        scores['total_points'] += points
+                        scores['max_points'] += 10
                     except (ValueError, TypeError):
                         continue
+            
+            # Calculate percentage and passing status
+            if scores['max_points'] > 0:
+                from rubric_handler import calculate_percentage, is_passing_grade
+                scores['percentage'] = calculate_percentage(scores['total_points'], scores['max_points'])
+                scores['passing'] = is_passing_grade(scores['percentage'])
         
         # Store student assessment for later
         student_assessments.append({
-            "student_id": student_record.id,
+            "student": student_record,
             "scores": scores,
             "repo_url": repo_url,
             "submission": code_str
         })
         
-        results.append({
+        # Add assessment to results with pass/fail status
+        result_entry = {
             "name": name,
             "repo_url": repo_url,
             "scores": scores
-        })
+        }
+        
+        # Add assessment data for frontend display
+        if 'percentage' in scores:
+            result_entry['assessment'] = {
+                'total_points': scores.get('total_points', 0),
+                'max_points': scores.get('max_points', 0),
+                'percentage': scores.get('percentage', 0),
+                'passing': scores.get('passing', False)
+            }
+        
+        results.append(result_entry)
     
     # Store results in session for later download
     session['last_assessment'] = results
@@ -328,27 +439,24 @@ def upload_csv():
             rubric=rubric,
             results=results
         )
-        db.session.add(new_assessment)
-        db.session.flush()  # Get ID without committing
+        new_assessment.save()
         
         # Now create student assessment records with the assessment ID
         for student_data in student_assessments:
             student_assessment = StudentAssessment(
-                student_id=student_data["student_id"],
-                assessment_id=new_assessment.id,  # Now we have the ID
+                student=student_data["student"],
+                assessment=new_assessment,
                 scores=student_data["scores"],
                 repo_url=student_data["repo_url"],
                 submission=student_data["submission"]
             )
-            db.session.add(student_assessment)
-        
-        db.session.commit()
+            student_assessment.save()
         
         return jsonify({
             "success": True, 
             "results": results,
             "assessment": {
-                "id": new_assessment.id,
+                "id": str(new_assessment.id),
                 "name": new_assessment.name,
                 "date": new_assessment.date.isoformat() if new_assessment.date else None,
                 "created_at": new_assessment.created_at.isoformat()
@@ -356,7 +464,6 @@ def upload_csv():
             "message": f"Successfully processed {len(results)} student submissions"
         })
     except Exception as e:
-        db.session.rollback()
         return jsonify({
             "error": f"Error saving assessment to database: {str(e)}",
             "results": results  # Still return results even if DB save fails
@@ -366,7 +473,7 @@ def upload_csv():
 def get_assessments():
     """Get all assessments"""
     try:
-        assessments = Assessment.query.order_by(Assessment.created_at.desc()).all()
+        assessments = Assessment.objects().order_by('-created_at')
         return jsonify({
             "success": True,
             "assessments": [assessment.to_dict() for assessment in assessments]
@@ -374,11 +481,11 @@ def get_assessments():
     except Exception as e:
         return jsonify({"error": f"Error retrieving assessments: {str(e)}"}), 500
 
-@routes_blueprint.route("/assessments/<int:assessment_id>", methods=["GET"])
+@routes_blueprint.route("/assessments/<assessment_id>", methods=["GET"])
 def get_assessment(assessment_id):
     """Get a specific assessment by ID"""
     try:
-        assessment = Assessment.query.get(assessment_id)
+        assessment = Assessment.objects(id=assessment_id).first()
         if not assessment:
             return jsonify({"error": f"Assessment with ID {assessment_id} not found"}), 404
         
@@ -404,11 +511,11 @@ def download_excel():
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-@routes_blueprint.route("/download_excel/<int:assessment_id>", methods=["GET"])
+@routes_blueprint.route("/download_excel/<assessment_id>", methods=["GET"])
 def download_assessment_excel(assessment_id):
     """Download Excel for a specific assessment"""
     try:
-        assessment = Assessment.query.get(assessment_id)
+        assessment = Assessment.objects(id=assessment_id).first()
         if not assessment:
             return jsonify({"error": f"Assessment with ID {assessment_id} not found"}), 404
         
@@ -437,8 +544,27 @@ def upload_rubric():
         is_valid, error_msg = validate_rubric(rubric)
         if not is_valid:
             return jsonify({"error": error_msg}), 400
+        
+        # Parse rubric to extract criteria and points
+        try:
+            rubric_items = parse_rubric_lines(rubric.strip().split('\n'))
+            total_points = sum(item['max_points'] for item in rubric_items)
+            passing_threshold = total_points * 0.8  # 80% passing threshold
             
-        return jsonify({"success": True, "rubric": rubric})
+            return jsonify({
+                "success": True, 
+                "rubric": rubric,
+                "parsed_rubric": rubric_items,
+                "total_points": total_points,
+                "passing_threshold": passing_threshold
+            })
+        except Exception as e:
+            # If parsing fails, still return the raw rubric
+            return jsonify({
+                "success": True, 
+                "rubric": rubric,
+                "warning": f"Could not parse rubric points: {str(e)}"
+            })
     except Exception as e:
         return jsonify({"error": f"Error processing rubric: {str(e)}"}), 400
 
@@ -463,34 +589,43 @@ def upload_github_url():
 def get_analytics():
     """Get aggregate analytics: total students, total assessments, average score."""
     try:
-        total_students = Student.query.count()
-        total_assessments = Assessment.query.count()
+        total_students = Student.objects().count()
+        total_assessments = Assessment.objects().count()
         
         # Calculate average score across all student assessments
-        avg_score = None
-        total_scores = 0
-        score_count = 0
-        student_assessments = StudentAssessment.query.all()
+        avg_percentage = None
+        total_percentage = 0
+        passing_count = 0
+        assessment_count = 0
+        student_assessments = StudentAssessment.objects()
         
         for sa in student_assessments:
             if sa.scores:  # Check if scores dictionary exists
-                # Calculate average of all scores for this assessment
-                assessment_scores = [
-                    score for score in sa.scores.values() 
-                    if isinstance(score, (int, float))
-                ]
-                if assessment_scores:
-                    total_scores += sum(assessment_scores) / len(assessment_scores)
-                    score_count += 1
+                assessment_count += 1
+                
+                # Check if we have the new format with percentage
+                if isinstance(sa.scores, dict) and 'percentage' in sa.scores:
+                    total_percentage += sa.scores['percentage']
+                    if sa.scores.get('passing', False):
+                        passing_count += 1
+                # Legacy format
+                else:
+                    percentage = sa._calculate_average_score()
+                    total_percentage += percentage
+                    if percentage >= 80:  # 80% passing threshold
+                        passing_count += 1
         
-        if score_count > 0:
-            avg_score = round(total_scores / score_count, 2)
+        if assessment_count > 0:
+            avg_percentage = round(total_percentage / assessment_count, 2)
+            passing_rate = round((passing_count / assessment_count) * 100, 2)
             
         return jsonify({
             "success": True,
             "total_students": total_students,
             "total_assessments": total_assessments,
-            "average_score": avg_score
+            "average_percentage": avg_percentage,
+            "passing_count": passing_count,
+            "passing_rate": f"{passing_rate}%" if assessment_count > 0 else "N/A"
         })
     except Exception as e:
         print(f"Analytics error: {str(e)}")  # Add logging for debugging
@@ -501,7 +636,7 @@ def get_analytics():
 def get_students():
     """Get all students with their assessment counts"""
     try:
-        students = Student.query.all()
+        students = Student.objects()
         return jsonify({
             "success": True,
             "students": [student.to_dict() for student in students]
@@ -509,11 +644,14 @@ def get_students():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@routes_blueprint.route("/students/<int:student_id>", methods=["GET"])
+@routes_blueprint.route("/students/<student_id>", methods=["GET"])
 def get_student(student_id):
     """Get a specific student with their assessment history"""
     try:
-        student = Student.query.get_or_404(student_id)
+        student = Student.objects(id=student_id).first()
+        if not student:
+            return jsonify({"error": f"Student with ID {student_id} not found"}), 404
+        
         return jsonify({
             "success": True,
             "student": student.to_dict_with_assessments()

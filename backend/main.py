@@ -3,8 +3,13 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_session import Session
 from routes.routes import routes_blueprint
-from models import db, Assessment
+from models import Assessment
 import os
+from mongoengine import connect
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -17,16 +22,9 @@ app.config.update(
     SESSION_COOKIE_SECURE=False  # Set to True in production with HTTPS
 )
 
-# Configure database
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///assessments.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-# Initialize database
-db.init_app(app)
-
-# Create tables if they don't exist
-with app.app_context():
-    db.create_all()
+# Configure MongoDB connection
+MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/learning_management_system')
+connect(host=MONGODB_URI)
 
 # Initialize session
 Session(app)
@@ -48,19 +46,15 @@ CORS(app, supports_credentials=True, resources={
 app.register_blueprint(routes_blueprint)
 
 # Assessment routes with error handling
-@app.route('/assessments/<int:assessment_id>', methods=['GET'])
+@app.route('/assessments/<assessment_id>', methods=['GET'])
 def get_assessment(assessment_id):
     try:
-        assessment = Assessment.query.get_or_404(assessment_id)
-        return jsonify({
-            'id': assessment.id,
-            'name': assessment.name,
-            'created_at': assessment.created_at
-        })
+        assessment = Assessment.objects(id=assessment_id).first()
+        if not assessment:
+            return jsonify({'error': 'Assessment not found'}), 404
+        return jsonify(assessment.to_dict())
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-# Route moved to routes.py to avoid duplication
 
 # Global error handlers to ensure JSON responses
 @app.errorhandler(404)

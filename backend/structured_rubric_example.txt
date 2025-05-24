@@ -1,0 +1,40 @@
+# Module Exam Rubric
+
+## Code Structure and Organization (15 points)
+- Proper file organization
+- Consistent naming conventions
+- Appropriate use of functions/classes
+- Clear separation of concerns
+
+## Functionality Implementation (25 points)
+- All required features implemented
+- Features work correctly
+- Error handling implemented
+- Edge cases handled properly
+
+## Code Quality (20 points)
+- Code is readable and maintainable
+- No redundant or duplicate code
+- Efficient algorithms and data structures
+- Proper use of language features
+
+## Testing (15 points)
+- Comprehensive test coverage
+- Tests for edge cases
+- Tests are well-organized
+- Tests pass consistently
+
+## Documentation (15 points)
+- Clear comments explaining complex logic
+- Function/method documentation
+- README with setup and usage instructions
+- API documentation if applicable
+
+## Version Control (10 points)
+- Meaningful commit messages
+- Logical commit history
+- Proper use of branches (if applicable)
+- Clean repository structure
+
+# Total possible points: 100
+# Students must score 80 points (80%) or higher to pass

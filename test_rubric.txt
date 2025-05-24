@@ -1,0 +1,10 @@
+# Test Rubric with Points
+
+Code Structure (10 points)
+Code Quality (15 points)
+Functionality (20 points)
+Documentation (10 points)
+Testing (5 points)
+
+# Total: 60 points
+# Passing: 48 points (80%)

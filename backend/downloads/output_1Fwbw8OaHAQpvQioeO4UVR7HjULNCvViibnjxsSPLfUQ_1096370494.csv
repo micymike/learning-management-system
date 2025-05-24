@@ -1,0 +1,93 @@
+CRITERIA,SCORES,,,,,POINTS
+Requirements,"(5 Marks)
+
+All requirements are met with high quality implementation.
+
+Example: https://nandomoreira-tic-tac-toe.netlify.app/
+https://lakshman-tic-tac-toe.surge.sh/","(3 Marks)
+
+All requirements are met, but implementation quality is average.
+
+Only half of the requirements are met with high quality.
+
+","(2 Marks)
+
+Most requirements are met, but implementation quality is below average.
+
+Less than half of the requirements are met with high quality.
+
+","(1 Marks)
+
+More than half of the requirements are missing or their implementation quality is very poor.
+
+","(0 Marks)
+
+No requirements are met.",5
+Gameplay on browser and responsive to all screen sizes,"(3 Marks)
+
+The game is easily accessible and responsive on all screen sizes, as it is an essential aspect of user experience.","(2 Marks)
+
+The game is partially responsive on all screen sizes.",,,"(0 Marks)
+
+The game is not easily accessible and is not responsive on all screen sizes.",3
+3x3 grid using HTML and CSS,"(3 Marks)
+
+The grid is visually appealing, functional, and accurately reflect a 3x3 game board.","(2 Marks)
+
+The grid is not styles hence averagely visually appealing, functional, and does not accurately reflect a 3x3 game board.",,,"(0 Marks)
+
+The 3x3 grid is absent.",3
+Event listeners to detect clicks on cells,"(5 Marks)
+
+The game has functional event listeners that detect clicks on empty cells, and initiate a move in response.","(3 Marks)
+
+The game has event listeners but not all of them are functional to detect clicks on empty cells, and initiate a move in response.","(2 Marks)
+
+The game has at least 2 functional event listeners that detect clicks on empty cells, and initiate a move in response.","(1 Marks)
+
+The game has only 1 functional event listeners that detect clicks on empty cells, and initiate a move in response.","(0 Marks)
+
+The game has no event listeners.",5
+Game logic to track state and moves,"(5 Marks)
+
+The game has a functional backend that tracks the state of the game board and moves made by each player, and correctly identifies when a player has won or when the game has ended in a tie.","(3 Marks)
+
+The game has a functional backend but does not track the state of the game board and moves made by each player, and incorrectly identifies the player that has won or when the game has ended in a tie.","(2 Marks)
+
+The game has a partially functional backend. It tracks the state of the game board and moves made by each player but incorrectly identifies the player that has won or vice versa.",,"(0 Marks)
+
+The game has no functional backend.",5
+Message to display who's turn it is and who won the game,"(3 Marks)
+
+The game displays messages indicating who's turn it is, and who has won the game or if the game has ended in a tie.","(2 Marks)
+
+The game displays messages only one of these messages, but not both; indicating who's turn it is, or who has won the game or if the game has ended in a tie.",,,"(0 Marks)
+
+The game does not display any messages to the user.",3
+Reset button to start a new round,"(3 Marks)
+
+The game has a functional reset button that allows players to start a new round without refreshing the page.","(1 Marks)
+
+The game has a reset button but it does not allow players to start a new round. Players have to refresh the page.",,,"(0 bMarks)
+
+The game has no reset button.",3
+Git Collaboration,"(3 Marks)
+
+The student contributed to the group's GitHub repository with different branches, working on each branch separtely and merging them to the main branch.","(2 Marks)
+
+The student contributed to the group's GitHub repository but used only 1 branch for all featutes.
+
+","(1 Marks)
+
+The student contributed to the group's GitHub repository with different branches but their work was not merged to the main branch.",,"(0 Marks)
+
+The student did not contribute to the group's github repository. Their branch and commits are missing.",3
+GitHub Pages,"(3 Marks)
+
+The students have deployed the completed work on GitHub Pages.","(1 Marks)
+
+The students have deployed the completed work on GitHub Pages but the link is missing/disfunctional.",,,"(0 Marks)
+
+The students did not deploy their work on GitHub Pages.",3
+,,,,,,Total: 33
+"NB: To pass, you MUST attain a score at 80% and above.	",,,,,,

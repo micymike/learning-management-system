@@ -9,5 +9,5 @@ openai
 requests
 uvicorn
 pinecone
-flask-sqlalchemy
-flask-migrate
+mongoengine
+python-dotenv
