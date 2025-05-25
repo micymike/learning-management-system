@@ -17,13 +17,18 @@ app = Flask(__name__)
 # Configure sessions
 app.config.update(
     SESSION_TYPE='filesystem',
-    SECRET_KEY=os.getenv('SECRET_KEY', 'your-secret-key'),
+    SECRET_KEY=os.getenv('SECRET_KEY'),
     SESSION_COOKIE_SAMESITE='Strict',
     SESSION_COOKIE_SECURE=False  # Set to True in production with HTTPS
 )
 
+if not app.config['SECRET_KEY']:
+    raise ValueError("No SECRET_KEY set for Flask application. Please configure environment variables.")
+
 # Configure MongoDB connection
-MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/learning_management_system')
+MONGODB_URI = os.getenv('MONGODB_URI')
+if not MONGODB_URI:
+    raise ValueError("No MONGODB_URI set for Flask application. Please configure environment variables.")
 connect(host=MONGODB_URI)
 
 # Initialize session

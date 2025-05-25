@@ -57,16 +57,23 @@ def assess_code(code, rubric, client):
     
     # Format rubric for the prompt
     rubric_str = "\n".join([f"- {item['criterion']} (Maximum points: {item['max_points']})" for item in rubric_items])
+
+    # Add descriptions to the rubric string
+    if rubric_items and 'descriptions' in rubric_items[0]:
+        descriptions = rubric_items[0]['descriptions']
+        rubric_str += "\nDescriptions:\n"
+        for key, value in descriptions.items():
+            rubric_str += f"- {key}: {value}\n"
     
     # First pass: Deep analysis of the code
-    analysis_system_prompt = """
+    analysis_system_prompt = f"""
 You are an expert code analyzer with deep knowledge of software engineering principles, design patterns, and best practices.
-Your task is to perform a thorough analysis of the provided code based EXACTLY on the rubric provided.
+Your task is to perform a thorough analysis of the provided code, considering the rubric criteria that will be used for assessment. The rubric is as follows: {rubric_str}
 
-The rubric contains criteria with maximum points for each criterion.
-You must analyze the code according to the EXACT criteria in the rubric.
+Code to analyze:
+{code}
 
-Provide a detailed analysis that will be used as input for a subsequent scoring process.
+Provide a detailed analysis of the code's strengths and weaknesses relative to EACH criterion in the rubric.
 """
 
     analysis_user_prompt = f"""
@@ -95,16 +102,18 @@ Provide a detailed analysis of the code's strengths and weaknesses relative to E
 
         # Second pass: Score based on the analysis and the exact rubric format
         scoring_system_prompt = """
-You are a strict code assessor. Your task is to evaluate code based STRICTLY on the given rubric and a detailed code analysis.
+You are a code assessor. Your task is to evaluate code based on the given rubric and a detailed code analysis.
 
-IMPORTANT: Each rubric criterion has a maximum number of points. You must:
+
+
+IMPORTANT: You must assign points for each criterion based on these score ranges.
 1. Assign points for each criterion (not exceeding the maximum)
 2. Provide a brief justification for your point assignment
 3. Be objective and consistent in your scoring
 
 For each criterion in the rubric:
-1. Determine how many points the code deserves based on the analysis
-2. Ensure the points do not exceed the maximum allowed for that criterion
+1. Determine which score range the code falls into based on the analysis
+2. Assign points within that score range
 3. Provide a brief justification for your assessment
 
 Your response MUST follow this exact format for each criterion:
@@ -188,10 +197,12 @@ Return the assessment with points and justifications for each criterion.
     except Exception as e:
         raise Exception(f"Error assessing code: {str(e)}")
 
-def read_sample_csv(file_path='backend/sample_students.csv'):
+def read_sample_csv(file_path):
     """
     Read the sample CSV file containing student information.
     """
+    if not file_path:
+        raise ValueError("CSV file path must be provided.")
     try:
         df = pd.read_csv(file_path)
         return df
@@ -211,9 +222,12 @@ def main():
         if not os.getenv("OPENAI_API_KEY"):
             print("Error: OpenAI API key not found in environment variables.")
             return
-        
         # Read sample CSV
-        students_df = read_sample_csv()
+        csv_path = os.getenv("STUDENTS_CSV_PATH")
+        if not csv_path:
+            print("Error: STUDENTS_CSV_PATH not found in environment variables.")
+            return
+        students_df = read_sample_csv(csv_path)
         if students_df is None:
             print("Error: Could not read student data.")
             return

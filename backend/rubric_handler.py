@@ -40,48 +40,37 @@ def upload_rubric_file(content):
     except Exception as e:
         raise ValueError("Could not process rubric file: " + str(e))
 
-def parse_rubric_lines(lines):
-    """
-    Parse rubric lines to extract criteria and max points
-    Format can be:
-    - "Criterion: X points" or "Criterion (X points)"
-    - "Criterion" (will assign default 10 points)
-    """
+import re
+
+def parse_rubric_lines(lines, default_points=10.0):
+    """Parses rubric lines from various formats."""
     criteria = []
-    for line in lines:
-        # Skip header or comment lines
-        if line.startswith('#') or line.lower().startswith('criteria'):
-            continue
-            
-        # Try to extract points from the line
-        if ':' in line and 'point' in line.lower().split(':')[1]:
-            # Format: "Criterion: X points"
-            parts = line.split(':', 1)
-            criterion = parts[0].strip()
-            points_part = parts[1].strip()
-            try:
-                max_points = float(points_part.split()[0])
-            except:
-                max_points = 10.0  # Default if parsing fails
-        elif '(' in line and ')' in line and 'point' in line.lower():
-            # Format: "Criterion (X points)"
-            criterion = line[:line.find('(')].strip()
-            points_part = line[line.find('(')+1:line.find(')')].strip()
-            try:
-                max_points = float(points_part.split()[0])
-            except:
-                max_points = 10.0  # Default if parsing fails
-        else:
-            # No explicit points, use default
-            criterion = line
-            max_points = 10.0
-            
-        criteria.append({
-            'criterion': criterion,
-            'max_points': max_points
-        })
-    
+    if len(lines) < 2:
+        return criteria
+
+    try:
+        # First line: Score descriptions
+        score_descriptions = [s.strip() for s in lines[0].split('\t')]
+
+        # Second line: Main criterion and descriptions
+        parts = lines[1].split('\t')
+        main_criterion = parts[0].split(':')[1].strip()
+        descriptions = [d.strip() for d in parts[1:]]
+
+        # Create a single criterion with descriptions
+        criterion = {
+            'criterion': main_criterion,
+            'max_points': default_points,
+            'score_mapping': dict(zip(score_descriptions, range(0, 11, 10 // (len(score_descriptions) -1 )))) if len(score_descriptions) > 1 else {score_descriptions[0]: default_points},
+            'descriptions': dict(zip(score_descriptions, descriptions))
+        }
+        criteria.append(criterion)
+    except Exception as e:
+        print(f"Error parsing rubric: {e}")
+        return []
+
     return criteria
+
 
 def load_rubric():
     """

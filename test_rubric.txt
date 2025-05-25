@@ -1,10 +1,2 @@
-# Test Rubric with Points
-
-Code Structure (10 points)
-Code Quality (15 points)
-Functionality (20 points)
-Documentation (10 points)
-Testing (5 points)
-
-# Total: 60 points
-# Passing: 48 points (80%)
+0 (No Mark)	PARTIAL MARKS 1 - 3 Marks: Partially Correct	"PARTIAL MARKS 4 - 8 Marks: Mostly Correct"	Full MARKS 10 - 12 Marks: Fully Correct
+Main Criterion: Correctness of Code	Incorrect Code - The code provided by the student is fundamentally incorrect, and it does not fulfill the specified requirements.	The code contains some correct elements but also includes significant errors that impact its functionality.	The majority of the code is correct, with only minor errors that do not significantly affect its overall functionality.	The code is entirely correct, meeting all specified requirements and functioning as intended.

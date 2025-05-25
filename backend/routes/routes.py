@@ -358,7 +358,8 @@ def upload_csv():
         
         # Assess the code
         try:
-            assessment = assess_code(repo_analysis, rubric, client)
+            rubric_items = parse_rubric_lines(rubric.strip().split('\n'))
+            assessment = assess_code(repo_analysis, rubric_items, client)
         except Exception as e:
             results.append({
                 "name": name,
