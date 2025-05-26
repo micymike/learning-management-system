@@ -1,0 +1,23 @@
+Code Correctness [10 points]
+- Poor (0-2): Code is fundamentally incorrect and does not meet requirements
+- Basic (3-5): Code has major issues but shows some understanding
+- Good (6-8): Code works with minor issues
+- Excellent (9-10): Code is fully correct and meets all requirements
+
+Code Readability [10 points]
+- Poor (0-2): Code is difficult to read with no comments
+- Basic (3-5): Code has basic structure but lacks proper documentation
+- Good (6-8): Code is well-organized with adequate comments
+- Excellent (9-10): Code is exceptionally clear with comprehensive documentation
+
+Code Efficiency [10 points]
+- Poor (0-2): Code is highly inefficient with obvious performance issues
+- Basic (3-5): Code works but uses suboptimal approaches
+- Good (6-8): Code uses reasonably efficient methods
+- Excellent (9-10): Code demonstrates optimal performance solutions
+
+Error Handling [10 points]
+- Poor (0-2): No error handling present
+- Basic (3-5): Basic error checks but missing important cases
+- Good (6-8): Most error cases handled appropriately
+- Excellent (9-10): Comprehensive error handling with good user feedback

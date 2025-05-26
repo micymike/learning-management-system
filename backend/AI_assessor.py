@@ -1,6 +1,5 @@
-""" 
-This file is responsible for assessing the AI generated code based on the given rubric.
-It will assess the code and return the score in points as specified by the rubric.
+"""
+This file is responsible for assessing code based on a structured rubric with multiple criteria and scoring levels.
 """
 
 import os
@@ -21,75 +20,54 @@ except Exception as e:
     print(f"Error: {e} check your environment for openai key")
     exit(1)
 
+def format_criterion_for_prompt(criterion):
+    """Format a single criterion with its levels for the prompt"""
+    result = f"{criterion['criterion']} [Maximum {criterion['max_points']} points]\n"
+    if 'levels' in criterion:
+        for level in criterion['levels']:
+            result += f"- Level ({level['min_points']}-{level['max_points']}): {level['description']}\n"
+    return result
+
 def assess_code(code, rubric, client):
     """
-    Assesses the given code based on the provided rubric using OpenAI API.
-    Returns points for each criterion based on the rubric's maximum points.
+    Assesses code using structured rubric criteria with defined scoring levels.
     
     Args:
         code (str): The code to assess
-        rubric (str or list): The rubric to use for assessment
+        rubric (list): List of criteria dictionaries with points and levels
         client: OpenAI client instance
-        
-    Returns:
-        dict: Dictionary with scores, max_points, percentages and pass/fail status
-        
-    Raises:
-        ValueError: If rubric is empty or invalid
-        Exception: For API errors or other issues
     """
-    # Parse the rubric to get criteria and max points
-    if isinstance(rubric, list) and isinstance(rubric[0], dict) and 'criterion' in rubric[0]:
-        # Already parsed rubric with criteria and max_points
-        rubric_items = rubric
-    else:
-        # Need to parse the rubric
-        from rubric_handler import parse_rubric_lines
-        if isinstance(rubric, list):
-            rubric_items = parse_rubric_lines(rubric)
-        else:
-            # Assume it's a string
-            rubric_items = parse_rubric_lines(rubric.strip().split('\n'))
-    
-    # Validate the rubric
-    if not rubric_items:
-        raise ValueError("Rubric cannot be empty. Please provide assessment criteria.")
-    
-    # Format rubric for the prompt
-    rubric_str = "\n".join([f"- {item['criterion']} (Maximum points: {item['max_points']})" for item in rubric_items])
+    print("Assessing code with rubric:")
+    print(json.dumps(rubric, indent=2))
 
-    # Add descriptions to the rubric string
-    if rubric_items and 'descriptions' in rubric_items[0]:
-        descriptions = rubric_items[0]['descriptions']
-        rubric_str += "\nDescriptions:\n"
-        for key, value in descriptions.items():
-            rubric_str += f"- {key}: {value}\n"
+    # Format rubric for prompt
+    rubric_prompt = "Assessment Criteria:\n\n"
+    total_max_points = 0
     
-    # First pass: Deep analysis of the code
-    analysis_system_prompt = f"""
-You are an expert code analyzer with deep knowledge of software engineering principles, design patterns, and best practices.
-Your task is to perform a thorough analysis of the provided code, considering the rubric criteria that will be used for assessment. The rubric is as follows: {rubric_str}
+    for criterion in rubric:
+        rubric_prompt += format_criterion_for_prompt(criterion) + "\n"
+        total_max_points += criterion['max_points']
+    
+    analysis_system_prompt = f"""You are an expert code assessor. Analyze the code according to these criteria:
 
-Code to analyze:
+{rubric_prompt}
+
+For each criterion:
+1. Analyze the code thoroughly
+2. Consider all aspects of the criterion and its scoring levels
+3. Provide specific examples from the code to support your analysis
+
+Your analysis will be used to assign scores in the next step."""
+
+    analysis_user_prompt = f"""Analyze this code based on the criteria:
+
 {code}
 
-Provide a detailed analysis of the code's strengths and weaknesses relative to EACH criterion in the rubric.
-"""
-
-    analysis_user_prompt = f"""
-Analyze the following code in depth, considering ONLY the rubric criteria that will be used for assessment:
-
-Rubric:
-{rubric_str}
-
-Code to analyze:
-{code}
-
-Provide a detailed analysis of the code's strengths and weaknesses relative to EACH criterion in the rubric.
-"""
+Provide detailed analysis for each criterion, citing specific code examples."""
 
     try:
-        # First pass: Get detailed analysis
+        # First pass: Detailed analysis
+        print("Getting detailed analysis...")
         analysis_response = client.chat.completions.create(
             model="gpt-3.5-turbo-0125",
             messages=[
@@ -98,46 +76,37 @@ Provide a detailed analysis of the code's strengths and weaknesses relative to E
             ],
             temperature=0.3
         )
+        
         code_analysis = analysis_response.choices[0].message.content
+        print("\nCode Analysis:")
+        print(code_analysis)
 
-        # Second pass: Score based on the analysis and the exact rubric format
-        scoring_system_prompt = """
-You are a code assessor. Your task is to evaluate code based on the given rubric and a detailed code analysis.
+        # Second pass: Score based on analysis and rubric levels
+        scoring_system_prompt = f"""You are a code assessor. Score the code based on this rubric:
 
+{rubric_prompt}
 
+Rules:
+1. Assign points within the defined ranges for each criterion
+2. Support each score with specific examples from the analysis
+3. Ensure scores match the level descriptions
 
-IMPORTANT: You must assign points for each criterion based on these score ranges.
-1. Assign points for each criterion (not exceeding the maximum)
-2. Provide a brief justification for your point assignment
-3. Be objective and consistent in your scoring
+Format your response exactly like this for each criterion:
 
-For each criterion in the rubric:
-1. Determine which score range the code falls into based on the analysis
-2. Assign points within that score range
-3. Provide a brief justification for your assessment
-
-Your response MUST follow this exact format for each criterion:
-Criterion: [Name of criterion]
-Points: [Assigned points as a number] out of [Maximum points]
-Justification: [Brief explanation]
-
-Example:
-Criterion: Code quality and organization
-Points: 8 out of 10
-Justification: The code is well-organized with clear function definitions, but lacks consistent naming conventions in some areas.
+CRITERION: [Name]
+SCORE: [X] out of [Y] points
+LEVEL: [Description of matched level]
+JUSTIFICATION: [Specific examples and reasoning]
 """
 
-        scoring_user_prompt = f"""
-Rubric to use for assessment:
-{rubric_str}
+        scoring_user_prompt = f"""Score this code analysis according to the rubric:
 
-Detailed code analysis:
+Analysis:
 {code_analysis}
 
-Evaluate the code according to EACH criterion in the rubric, assigning points that do not exceed the maximum for each criterion.
-Return the assessment with points and justifications for each criterion.
-"""
+Provide detailed scoring for each criterion."""
 
+        print("\nGetting scores...")
         scoring_response = client.chat.completions.create(
             model="gpt-3.5-turbo-0125",
             messages=[
@@ -146,140 +115,87 @@ Return the assessment with points and justifications for each criterion.
             ],
             temperature=0.2
         )
-        assessment_content = scoring_response.choices[0].message.content
 
-        # Parse the response into a dictionary with scores and justifications
-        import re
-        criterion_pattern = r'Criterion:\s*(.*?)\s*\n'
-        points_pattern = r'Points:\s*(\d+(?:\.\d+)?)\s*out of\s*(\d+(?:\.\d+)?)'
-        justification_pattern = r'Justification:\s*(.*?)(?:\n\n|\Z)'
-        
-        criteria_matches = re.findall(criterion_pattern, assessment_content, re.DOTALL)
-        points_matches = re.findall(points_pattern, assessment_content, re.DOTALL)
-        justification_matches = re.findall(justification_pattern, assessment_content, re.DOTALL)
-        
-        # Prepare the result dictionary
+        assessment_text = scoring_response.choices[0].message.content
+        print("\nScoring Response:")
+        print(assessment_text)
+
+        # Parse the scoring response
         result = {
             'criteria_scores': {},
             'total_points': 0,
-            'max_points': 0,
+            'max_points': total_max_points,
             'percentage': 0,
             'passing': False
         }
+
+        # Extract scores and justifications
+        current_criterion = None
+        current_score = None
+        current_justification = []
         
-        # Process each criterion
-        if criteria_matches and points_matches and len(criteria_matches) == len(points_matches):
-            for i in range(len(criteria_matches)):
-                criterion = criteria_matches[i].strip()
-                points = float(points_matches[i][0])
-                max_points = float(points_matches[i][1])
+        for line in assessment_text.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
                 
-                # Store the points and max points
-                result['criteria_scores'][criterion] = {
-                    'points': points,
-                    'max_points': max_points
-                }
+            if line.startswith('CRITERION:'):
+                # Save previous criterion if exists
+                if current_criterion and current_score is not None:
+                    result['criteria_scores'][current_criterion] = {
+                        'points': current_score['points'],
+                        'max_points': current_score['max'],
+                        'justification': ' '.join(current_justification)
+                    }
+                    result['total_points'] += current_score['points']
                 
-                # Add to total points
-                result['total_points'] += points
-                result['max_points'] += max_points
-                
-                # Store justification if available
-                if i < len(justification_matches):
-                    result['criteria_scores'][criterion]['justification'] = justification_matches[i].strip()
+                # Start new criterion
+                current_criterion = line.split(':', 1)[1].strip()
+                current_score = None
+                current_justification = []
+            
+            elif line.startswith('SCORE:'):
+                score_text = line.split(':', 1)[1].strip()
+                points = float(score_text.split()[0])
+                max_points = float(score_text.split()[-2])
+                current_score = {'points': points, 'max': max_points}
+            
+            elif line.startswith('JUSTIFICATION:'):
+                current_justification = [line.split(':', 1)[1].strip()]
+            
+            elif current_justification:  # Continue previous justification
+                current_justification.append(line)
+
+        # Add final criterion
+        if current_criterion and current_score is not None:
+            result['criteria_scores'][current_criterion] = {
+                'points': current_score['points'],
+                'max_points': current_score['max'],
+                'justification': ' '.join(current_justification)
+            }
+            result['total_points'] += current_score['points']
+
+        # Calculate final percentage and passing status
+        result['percentage'] = calculate_percentage(result['total_points'], result['max_points'])
+        result['passing'] = is_passing_grade(result['percentage'])
         
-        # Calculate percentage and passing status
-        if result['max_points'] > 0:
-            result['percentage'] = calculate_percentage(result['total_points'], result['max_points'])
-            result['passing'] = is_passing_grade(result['percentage'])
-        
+        print("\nFinal Assessment:")
+        print(json.dumps(result, indent=2))
         return result
+
     except Exception as e:
-        raise Exception(f"Error assessing code: {str(e)}")
+        print(f"Error in assessment: {str(e)}")
+        raise Exception(f"Assessment failed: {str(e)}")
 
 def read_sample_csv(file_path):
-    """
-    Read the sample CSV file containing student information.
-    """
+    """Read student information from CSV"""
     if not file_path:
-        raise ValueError("CSV file path must be provided.")
+        raise ValueError("CSV file path must be provided")
     try:
-        df = pd.read_csv(file_path)
-        return df
+        return pd.read_csv(file_path)
     except Exception as e:
         print(f"Error reading CSV: {e}")
         return None
-
-def main():
-    """
-    Main function to process student repositories and assess their code.
-    """
-    try:
-        # Load environment variables
-        dotenv.load_dotenv()
-        
-        # Check for OpenAI API key
-        if not os.getenv("OPENAI_API_KEY"):
-            print("Error: OpenAI API key not found in environment variables.")
-            return
-        # Read sample CSV
-        csv_path = os.getenv("STUDENTS_CSV_PATH")
-        if not csv_path:
-            print("Error: STUDENTS_CSV_PATH not found in environment variables.")
-            return
-        students_df = read_sample_csv(csv_path)
-        if students_df is None:
-            print("Error: Could not read student data.")
-            return
-        
-        # Load rubric
-        rubric = load_rubric()
-        if not rubric:
-            print("Error: Could not load rubric.")
-            return
-        
-        # Process each student
-        results = []
-        for index, row in students_df.iterrows():
-            student_name = row['name']
-            repo_url = row['repo_url']
-            
-            print(f"Processing {student_name}'s repository: {repo_url}")
-            
-            try:
-                # Analyze repository
-                code = analyze_repo(repo_url)
-                if not code:
-                    print(f"Warning: No code found for {student_name}'s repository.")
-                    continue
-                
-                # Assess code
-                assessment = assess_code(code, rubric, client)
-                
-                # Add to results
-                results.append({
-                    'name': student_name,
-                    'repo_url': repo_url,
-                    'assessment': assessment
-                })
-                
-                print(f"Assessment completed for {student_name}.")
-                print(f"Total points: {assessment['total_points']} out of {assessment['max_points']}")
-                print(f"Percentage: {assessment['percentage']}%")
-                print(f"Passing: {'Yes' if assessment['passing'] else 'No'}")
-            except Exception as e:
-                print(f"Error processing {student_name}'s repository: {e}")
-        
-        # Save results
-        if results:
-            with open('assessment_results.json', 'w') as f:
-                json.dump(results, f, indent=2)
-            print(f"Assessment results saved to assessment_results.json")
-        else:
-            print("No assessment results to save.")
-    
-    except Exception as e:
-        print(f"Error in main function: {e}")
 
 if __name__ == "__main__":
     main()

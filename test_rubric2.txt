@@ -1,2 +1,23 @@
-Level 1: Beginner	Level 2: Intermediate	Level 3: Advanced	Level 4: Expert
-Criterion: Code Readability	Code is difficult to understand and lacks comments.	Code is somewhat readable but could benefit from more comments and better formatting.	Code is mostly readable with clear formatting and helpful comments.	Code is highly readable, well-formatted, and includes comprehensive comments.
+Code Structure [8 points]
+- Poor (0-2): Code is disorganized and difficult to follow
+- Basic (3-4): Basic organization but lacks clear structure
+- Good (5-6): Well-organized with clear sections
+- Excellent (7-8): Exceptionally well-structured and modular
+
+Documentation [8 points]
+- Poor (0-2): No comments or documentation
+- Basic (3-4): Minimal comments present
+- Good (5-6): Clear comments explaining key parts
+- Excellent (7-8): Comprehensive documentation and comments
+
+Functionality [8 points]
+- Poor (0-2): Code does not work as intended
+- Basic (3-4): Basic functionality with major issues
+- Good (5-6): Works well with minor issues
+- Excellent (7-8): Perfect functionality as required
+
+Testing [8 points]
+- Poor (0-2): No testing implemented
+- Basic (3-4): Basic error checks only
+- Good (5-6): Good test coverage
+- Excellent (7-8): Comprehensive test suite

@@ -1,5 +1,7 @@
 import pandas as pd
 from io import BytesIO
+import re
+import json
 
 def upload_rubric_file(content):
     """
@@ -22,7 +24,6 @@ def upload_rubric_file(content):
             # If not text, try as Excel
             try:
                 df = pd.read_excel(BytesIO(content))
-                # Check if we have at least two columns (criteria and points)
                 if len(df.columns) >= 2:
                     criteria = []
                     for _, row in df.iterrows():
@@ -40,48 +41,96 @@ def upload_rubric_file(content):
     except Exception as e:
         raise ValueError("Could not process rubric file: " + str(e))
 
-import re
-
-def parse_rubric_lines(lines, default_points=10.0):
-    """Parses rubric lines from various formats."""
-    criteria = []
-    if len(lines) < 2:
-        return criteria
-
+def parse_rubric_lines(lines):
+    """
+    Parse rubric lines with format:
+    Criterion Name [X points]
+    - Level 1 (0-2): Description
+    - Level 2 (3-5): Description
+    etc.
+    """
     try:
-        # First line: Score descriptions
-        score_descriptions = [s.strip() for s in lines[0].split('\t')]
-
-        # Second line: Main criterion and descriptions
-        parts = lines[1].split('\t')
-        main_criterion = parts[0].split(':')[1].strip()
-        descriptions = [d.strip() for d in parts[1:]]
-
-        # Create a single criterion with descriptions
-        criterion = {
-            'criterion': main_criterion,
-            'max_points': default_points,
-            'score_mapping': dict(zip(score_descriptions, range(0, 11, 10 // (len(score_descriptions) -1 )))) if len(score_descriptions) > 1 else {score_descriptions[0]: default_points},
-            'descriptions': dict(zip(score_descriptions, descriptions))
-        }
-        criteria.append(criterion)
+        print("\nParsing rubric lines:")
+        print("\n".join(lines))
+        
+        criteria = []
+        current_criterion = None
+        
+        for line in lines:
+            # Skip empty lines
+            if not line.strip():
+                continue
+                
+            # Check if this is a criterion header (contains [X points])
+            points_match = re.search(r'\[(\d+)\s*points?\]', line, re.IGNORECASE)
+            if points_match:
+                # If we were processing a previous criterion, add it
+                if current_criterion:
+                    criteria.append(current_criterion)
+                    print(f"Added criterion: {json.dumps(current_criterion, indent=2)}")
+                
+                # Start new criterion
+                max_points = float(points_match.group(1))
+                criterion_name = line.split('[')[0].strip()
+                
+                print(f"\nFound criterion: {criterion_name}")
+                print(f"Max points: {max_points}")
+                
+                current_criterion = {
+                    'criterion': criterion_name,
+                    'max_points': max_points,
+                    'levels': []
+                }
+            
+            # Check if this is a level description
+            elif line.startswith('-') and current_criterion:
+                # Extract level ranges like (0-2) or (9-10)
+                range_match = re.search(r'\((\d+)-(\d+)\)', line)
+                if range_match:
+                    min_points = float(range_match.group(1))
+                    max_points = float(range_match.group(2))
+                    
+                    # Get description (everything after the :)
+                    desc_parts = line.split(':')
+                    description = desc_parts[1].strip() if len(desc_parts) > 1 else ""
+                    
+                    level_info = {
+                        'min_points': min_points,
+                        'max_points': max_points,
+                        'description': description
+                    }
+                    
+                    print(f"Added level: {json.dumps(level_info, indent=2)}")
+                    current_criterion['levels'].append(level_info)
+        
+        # Add the last criterion if exists
+        if current_criterion:
+            criteria.append(current_criterion)
+            print(f"Added final criterion: {json.dumps(current_criterion, indent=2)}")
+        
+        # Sort levels by min_points for each criterion
+        for criterion in criteria:
+            if 'levels' in criterion:
+                criterion['levels'].sort(key=lambda x: x['min_points'])
+        
+        print("\nFinal parsed rubric:")
+        print(json.dumps(criteria, indent=2))
+        return criteria
+        
     except Exception as e:
-        print(f"Error parsing rubric: {e}")
-        return []
-
-    return criteria
-
+        print(f"Error parsing rubric: {str(e)}")
+        # Return a simple format as fallback
+        return [{"criterion": line.strip(), "max_points": 10.0} for line in lines if line.strip()]
 
 def load_rubric():
     """
     Load default rubric criteria with points
     """
     return [
-        {"criterion": "Code quality and organization", "max_points": 10},
-        {"criterion": "Documentation and comments", "max_points": 10},
-        {"criterion": "Proper use of version control", "max_points": 10},
-        {"criterion": "Implementation of required features", "max_points": 15},
-        {"criterion": "Testing and error handling", "max_points": 5}
+        {"criterion": "Code Correctness", "max_points": 10},
+        {"criterion": "Code Readability", "max_points": 10},
+        {"criterion": "Code Efficiency", "max_points": 10},
+        {"criterion": "Error Handling", "max_points": 10}
     ]
 
 def calculate_percentage(points, max_points):
