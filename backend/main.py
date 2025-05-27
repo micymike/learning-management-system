@@ -26,10 +26,10 @@ if not app.config['SECRET_KEY']:
     raise ValueError("No SECRET_KEY set for Flask application. Please configure environment variables.")
 
 # Configure MongoDB connection
-MONGODB_URI = os.getenv('MONGODB_URI')
-if not MONGODB_URI:
+MONGODB_URL = os.getenv('MONGODB_URL')
+if not MONGODB_URL:
     raise ValueError("No MONGODB_URI set for Flask application. Please configure environment variables.")
-connect(host=MONGODB_URI)
+connect(host=MONGODB_URL)
 
 # Initialize session
 Session(app)
@@ -39,26 +39,48 @@ CORS(app, supports_credentials=True, resources={
     r"/*": {
         "origins": [
             "http://localhost:5173",
+            "http://localhost:3000",
             "https://codeanalyzer-bc.onrender.com",
             "https://directed-codeanalyzer.onrender.com"
         ],
-        "methods": ["GET", "POST"],
-        "allow_headers": ["Content-Type"],
-        "expose_headers": ["Content-Type"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "Origin", "X-Requested-With", "Accept"],
+        "expose_headers": ["Content-Type", "Content-Disposition"],
         "supports_credentials": True
     }
 })
+
+# Add OPTIONS method handler for all routes to handle CORS preflight requests
+@app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
+@app.route('/<path:path>', methods=['OPTIONS'])
+def handle_options(path):
+    response = app.make_default_options_response()
+    response.headers.set('Access-Control-Allow-Origin', 'http://localhost:5173')
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization,Origin,X-Requested-With,Accept')
+    response.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+    response.headers.set('Access-Control-Allow-Credentials', 'true')
+    return response
 app.register_blueprint(routes_blueprint)
 
 # Assessment routes with error handling
 @app.route('/assessments/<assessment_id>', methods=['GET'])
 def get_assessment(assessment_id):
     try:
+        print(f"Fetching assessment with ID: {assessment_id}")
         assessment = Assessment.objects(id=assessment_id).first()
+        
         if not assessment:
+            print(f"Assessment with ID {assessment_id} not found")
             return jsonify({'error': 'Assessment not found'}), 404
-        return jsonify(assessment.to_dict())
+        
+        # Convert to dictionary and add _id field for frontend compatibility
+        assessment_dict = assessment.to_dict()
+        assessment_dict['_id'] = assessment_dict['id']  # Add _id field for frontend
+        
+        print(f"Returning assessment: {assessment.name}")
+        return jsonify(assessment_dict)
     except Exception as e:
+        print(f"Error fetching assessment: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 # Global error handlers to ensure JSON responses

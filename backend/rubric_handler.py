@@ -2,44 +2,127 @@ import pandas as pd
 from io import BytesIO
 import re
 import json
+from openpyxl import load_workbook
 
 def upload_rubric_file(content):
     """
     Process uploaded rubric file content.
-    Supports both Excel files and text files (.txt, .md)
+    Supports Excel files (.xlsx, .xls) and text files (.txt, .md)
     
     Returns a list of dictionaries with criteria and max_points
     """
+    print("\nProcessing rubric file...")
+    print(f"Content type: {type(content)}")
+    print(f"Content length: {len(content)} bytes")
+    
+    # For debugging, print first 100 bytes as hex
+    print(f"Content preview (hex): {content[:100].hex()[:100]}...")
+    
     try:
-        # Try to read as text file first
+        # Try to read as Excel first
         try:
-            text_content = content.decode('utf-8')
-            # Split by newlines and filter out empty lines
-            lines = [line.strip() for line in text_content.split('\n') if line.strip()]
+            print("Attempting to parse as Excel...")
+            # Create BytesIO object from binary content
+            bytes_io = BytesIO(content)
             
-            # Parse the rubric lines to extract criteria and max points
+            # Try to detect Excel format
+            try:
+                # Try to load with openpyxl first (for debugging)
+                print("Trying to load with openpyxl...")
+                workbook = load_workbook(bytes_io)
+                print(f"Excel file loaded with openpyxl. Sheets: {workbook.sheetnames}")
+                
+                # Reset the BytesIO object
+                bytes_io.seek(0)
+            except Exception as openpyxl_error:
+                print(f"openpyxl loading failed: {str(openpyxl_error)}")
+                # Reset the BytesIO object
+                bytes_io.seek(0)
+            
+            # Now try with pandas
+            try:
+                print("Trying to load with pandas...")
+                df = pd.read_excel(bytes_io)
+                print("\nExcel content successfully parsed with pandas:")
+                print(f"DataFrame shape: {df.shape}")
+                print(f"DataFrame columns: {df.columns.tolist()}")
+                print(df.head())
+            except Exception as pandas_error:
+                print(f"pandas Excel reading failed: {str(pandas_error)}")
+                # Try with different Excel engine
+                bytes_io.seek(0)
+                try:
+                    print("Trying with xlrd engine...")
+                    df = pd.read_excel(bytes_io, engine='xlrd')
+                    print("Excel content successfully parsed with xlrd engine")
+                except Exception as xlrd_error:
+                    print(f"xlrd engine failed: {str(xlrd_error)}")
+                    # Try with openpyxl engine explicitly
+                    bytes_io.seek(0)
+                    try:
+                        print("Trying with openpyxl engine...")
+                        df = pd.read_excel(bytes_io, engine='openpyxl')
+                        print("Excel content successfully parsed with openpyxl engine")
+                    except Exception as openpyxl_engine_error:
+                        print(f"openpyxl engine failed: {str(openpyxl_engine_error)}")
+                        raise
+            
+            # Convert Excel to text format
+            lines = []
+            current_criterion = None
+            
+            for _, row in df.iterrows():
+                # Convert row to string, handling NaN values
+                text = str(row.iloc[0]) if pd.notna(row.iloc[0]) else ""
+                points = row.iloc[1] if len(row) > 1 and pd.notna(row.iloc[1]) else None
+                
+                if not text:
+                    continue
+                    
+                # If it's a main criterion (contains points in second column)
+                if points is not None and isinstance(points, (int, float)):
+                    lines.append(f"{text} [{int(points)} points]")
+                    current_criterion = text
+                # If it's a level description (starts with - or *)
+                elif text.startswith(('-', '*')) and current_criterion:
+                    lines.append(text)
+            
+            print("\nConverted Excel to lines:")
+            print("\n".join(lines))
+            
             return parse_rubric_lines(lines)
             
-        except UnicodeDecodeError:
-            # If not text, try as Excel
+        except Exception as excel_error:
+            print(f"Excel parsing failed: {str(excel_error)}")
+            
+            # Try as text file
             try:
-                df = pd.read_excel(BytesIO(content))
-                if len(df.columns) >= 2:
-                    criteria = []
-                    for _, row in df.iterrows():
-                        if pd.notna(row[0]) and pd.notna(row[1]):
-                            criteria.append({
-                                'criterion': str(row[0]),
-                                'max_points': float(row[1])
-                            })
-                    return criteria
-                else:
-                    # Only one column, assume default points
-                    return [{'criterion': str(x), 'max_points': 10.0} for x in df.iloc[:, 0].dropna().tolist()]
-            except Exception as e:
-                raise ValueError("Could not process file as Excel: " + str(e))
+                print("Attempting to parse as text file...")
+                text_content = content.decode('utf-8')
+                print(f"Text content preview: {text_content[:200]}...")
+                lines = [line.strip() for line in text_content.split('\n') if line.strip()]
+                print(f"Parsed {len(lines)} lines from text content")
+                return parse_rubric_lines(lines)
+            except UnicodeDecodeError as decode_error:
+                print(f"Text parsing failed: {str(decode_error)}")
+                
+                # Try with different encodings
+                for encoding in ['latin-1', 'cp1252', 'iso-8859-1']:
+                    try:
+                        print(f"Trying with {encoding} encoding...")
+                        text_content = content.decode(encoding)
+                        lines = [line.strip() for line in text_content.split('\n') if line.strip()]
+                        print(f"Successfully parsed with {encoding} encoding")
+                        return parse_rubric_lines(lines)
+                    except Exception as e:
+                        print(f"Failed with {encoding} encoding: {str(e)}")
+                
+                # If we get here, all parsing attempts failed
+                raise ValueError("Could not process file as Excel or text with any encoding")
+                
     except Exception as e:
-        raise ValueError("Could not process rubric file: " + str(e))
+        print(f"Rubric processing failed with error: {str(e)}")
+        raise ValueError(f"Could not process rubric file: {str(e)}")
 
 def parse_rubric_lines(lines):
     """
@@ -48,28 +131,85 @@ def parse_rubric_lines(lines):
     - Level 1 (0-2): Description
     - Level 2 (3-5): Description
     etc.
+    
+    Also supports Excel-style format where the criterion is in the first column
+    and the points are in the second column.
+    
+    If no valid criteria are found, returns a default rubric.
     """
     try:
         print("\nParsing rubric lines:")
-        print("\n".join(lines))
+        print("\n".join(lines[:20]))  # Print first 20 lines to avoid overwhelming logs
+        if len(lines) > 20:
+            print(f"... and {len(lines) - 20} more lines")
         
         criteria = []
         current_criterion = None
         
+        # First pass: try to identify if this is an Excel-style export
+        is_excel_format = False
+        has_points_column = False
+        
+        # Check if any line contains a tab or multiple spaces that might indicate columns
+        for line in lines[:10]:  # Check first 10 lines
+            if '\t' in line or '    ' in line:
+                is_excel_format = True
+                print("Detected possible Excel-style format (tab or multiple spaces)")
+                break
+        
+        # If it looks like Excel format, try to parse it differently
+        if is_excel_format:
+            print("Parsing as Excel-style format")
+            for line in lines:
+                if not line.strip():
+                    continue
+                
+                # Split by tab or multiple spaces
+                parts = re.split(r'\t|    +', line)
+                if len(parts) >= 2:
+                    criterion_name = parts[0].strip()
+                    # Try to extract points from second column
+                    points_match = re.search(r'(\d+)', parts[1])
+                    
+                    if points_match and criterion_name:
+                        if current_criterion:
+                            criteria.append(current_criterion)
+                            print(f"Added criterion: {json.dumps(current_criterion, indent=2)}")
+                        
+                        max_points = float(points_match.group(1))
+                        print(f"\nFound criterion: {criterion_name}")
+                        print(f"Max points: {max_points}")
+                        
+                        current_criterion = {
+                            'criterion': criterion_name,
+                            'max_points': max_points,
+                            'levels': []
+                        }
+                        has_points_column = True
+            
+            # If we found criteria with points column, return them
+            if has_points_column and criteria:
+                if current_criterion:
+                    criteria.append(current_criterion)
+                    print(f"Added final criterion: {json.dumps(current_criterion, indent=2)}")
+                return criteria
+        
+        # If Excel format didn't work or wasn't detected, try standard format
+        print("Parsing as standard format")
+        criteria = []
+        current_criterion = None
+        
         for line in lines:
-            # Skip empty lines
             if not line.strip():
                 continue
                 
             # Check if this is a criterion header (contains [X points])
             points_match = re.search(r'\[(\d+)\s*points?\]', line, re.IGNORECASE)
             if points_match:
-                # If we were processing a previous criterion, add it
                 if current_criterion:
                     criteria.append(current_criterion)
                     print(f"Added criterion: {json.dumps(current_criterion, indent=2)}")
                 
-                # Start new criterion
                 max_points = float(points_match.group(1))
                 criterion_name = line.split('[')[0].strip()
                 
@@ -82,15 +222,31 @@ def parse_rubric_lines(lines):
                     'levels': []
                 }
             
+            # If no criteria found yet, try to extract from the line itself
+            elif not criteria and not current_criterion:
+                # Try to find a number that might be points
+                points_match = re.search(r'(\d+)\s*points?', line, re.IGNORECASE)
+                if points_match:
+                    max_points = float(points_match.group(1))
+                    # Use the rest of the line as criterion name
+                    criterion_name = re.sub(r'\d+\s*points?', '', line, flags=re.IGNORECASE).strip()
+                    
+                    if criterion_name:
+                        print(f"\nFound criterion from line: {criterion_name}")
+                        print(f"Max points: {max_points}")
+                        
+                        current_criterion = {
+                            'criterion': criterion_name,
+                            'max_points': max_points,
+                            'levels': []
+                        }
+            
             # Check if this is a level description
             elif line.startswith('-') and current_criterion:
-                # Extract level ranges like (0-2) or (9-10)
                 range_match = re.search(r'\((\d+)-(\d+)\)', line)
                 if range_match:
                     min_points = float(range_match.group(1))
                     max_points = float(range_match.group(2))
-                    
-                    # Get description (everything after the :)
                     desc_parts = line.split(':')
                     description = desc_parts[1].strip() if len(desc_parts) > 1 else ""
                     
@@ -103,48 +259,46 @@ def parse_rubric_lines(lines):
                     print(f"Added level: {json.dumps(level_info, indent=2)}")
                     current_criterion['levels'].append(level_info)
         
-        # Add the last criterion if exists
         if current_criterion:
             criteria.append(current_criterion)
             print(f"Added final criterion: {json.dumps(current_criterion, indent=2)}")
         
-        # Sort levels by min_points for each criterion
-        for criterion in criteria:
-            if 'levels' in criterion:
-                criterion['levels'].sort(key=lambda x: x['min_points'])
-        
         print("\nFinal parsed rubric:")
         print(json.dumps(criteria, indent=2))
+        
+        # If no criteria were found, use the default rubric
+        if not criteria:
+            print("No criteria found in rubric, using default rubric")
+            return load_rubric()
+            
         return criteria
         
     except Exception as e:
         print(f"Error parsing rubric: {str(e)}")
-        # Return a simple format as fallback
-        return [{"criterion": line.strip(), "max_points": 10.0} for line in lines if line.strip()]
+        # Return default rubric on error
+        print("Error parsing rubric, using default criteria")
+        return load_rubric()
 
 def load_rubric():
     """
-    Load default rubric criteria with points
+    Load default rubric criteria with predefined points
     """
+    # Return a default rubric with standard criteria
     return [
-        {"criterion": "Code Correctness", "max_points": 10},
-        {"criterion": "Code Readability", "max_points": 10},
-        {"criterion": "Code Efficiency", "max_points": 10},
-        {"criterion": "Error Handling", "max_points": 10}
+        {"criterion": "Code Correctness", "max_points": 12},
+        {"criterion": "Code Structure", "max_points": 8},
+        {"criterion": "Documentation", "max_points": 8},
+        {"criterion": "Error Handling", "max_points": 8},
+        {"criterion": "Testing", "max_points": 8}
     ]
 
 def calculate_percentage(points, max_points):
-    """
-    Calculate percentage score from points
-    """
+    """Calculate percentage score from points"""
     if max_points <= 0:
         return 0
-    
     percentage = (points / max_points) * 100
     return round(percentage, 2)
 
 def is_passing_grade(percentage):
-    """
-    Check if the percentage is a passing grade (80% or higher)
-    """
+    """Check if percentage is passing grade (≥80%)"""
     return percentage >= 80.0

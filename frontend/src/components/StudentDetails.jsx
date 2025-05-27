@@ -39,12 +39,23 @@ const StudentDetails = () => {
   const formatScore = (score) => {
     if (typeof score === 'object' && score !== null) {
       if (score.mark) {
-        return score.mark; // Return the mark from structured score
+        // If mark already includes a format like "8.0/10.0", return it as is
+        if (typeof score.mark === 'string' && score.mark.includes('/')) {
+          return score.mark;
+        }
+        // Otherwise return the mark directly
+        return score.mark;
+      }
+      // For assessment objects with total_points and max_points
+      if (score.total_points !== undefined && score.max_points !== undefined) {
+        return `${score.total_points}/${score.max_points}`;
       }
       return 'N/A'; // Invalid object format
     }
     if (typeof score === 'number') {
-      return `${score}/5`; // Legacy format
+      // Get max points from the assessment if available
+      const maxPoints = student?.assessments?.[0]?.assessment?.max_points || 10;
+      return `${score}/${maxPoints}`;
     }
     return 'N/A'; // Fallback
   };
@@ -55,21 +66,36 @@ const StudentDetails = () => {
       return score;
     }
     
-    if (typeof score === 'object' && score !== null && score.mark) {
-      const mark = score.mark;
-      // Try to extract numeric values from mark ranges like "4 - 8 Marks"
-      if (typeof mark === 'string') {
-        // Check for ranges like "4 - 8 Marks"
-        const rangeMatch = mark.match(/(\d+)\s*-\s*(\d+)/);
-        if (rangeMatch) {
-          // Use the average of the range
-          return (parseInt(rangeMatch[1]) + parseInt(rangeMatch[2])) / 2;
-        }
-        
-        // Check for single values like "0 (No Mark)"
-        const singleMatch = mark.match(/(\d+)/);
-        if (singleMatch) {
-          return parseInt(singleMatch[1]);
+    if (typeof score === 'object' && score !== null) {
+      // For assessment objects with total_points
+      if (score.total_points !== undefined) {
+        return score.total_points;
+      }
+      
+      if (score.mark) {
+        const mark = score.mark;
+        // Try to extract numeric values from mark ranges
+        if (typeof mark === 'string') {
+          // Check for fractions like "8.0/10.0" - extract just the first number
+          const fractionWithDecimalMatch = mark.match(/([\d.]+)\s*\/\s*[\d.]+/);
+          if (fractionWithDecimalMatch) {
+            return parseFloat(fractionWithDecimalMatch[1]);
+          }
+          
+          // Check for ranges like "4 - 8 Marks"
+          const rangeMatch = mark.match(/(\d+)\s*-\s*(\d+)/);
+          if (rangeMatch) {
+            // Use the average of the range
+            return (parseInt(rangeMatch[1]) + parseInt(rangeMatch[2])) / 2;
+          }
+          
+          // Check for decimal values like "8.0"
+          const decimalMatch = mark.match(/([\d.]+)/);
+          if (decimalMatch) {
+            return parseFloat(decimalMatch[1]);
+          }
+        } else if (typeof mark === 'number') {
+          return mark;
         }
       }
     }

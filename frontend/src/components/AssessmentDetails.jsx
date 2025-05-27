@@ -17,13 +17,16 @@ const AssessmentDetails = () => {
     const fetchAssessment = async () => {
       try {
         setLoading(true);
+        console.log(`Fetching assessment with ID: ${id}`);
         const response = await assessApi.getAssessment(id);
         
         if (response.success && response.data) {
+          console.log('Assessment data received:', response.data);
           setAssessment(response.data);
           setError(null);
         } else {
-          setError('Failed to load assessment details');
+          console.error('Invalid response format:', response);
+          setError('Failed to load assessment details: Invalid response format');
         }
       } catch (err) {
         console.error('Error loading assessment:', err);
@@ -35,13 +38,17 @@ const AssessmentDetails = () => {
     
     if (id) {
       fetchAssessment();
+    } else {
+      setError('No assessment ID provided');
     }
   }, [id]);
 
   const handleDownloadExcel = async () => {
     try {
       setLoading(true);
+      console.log(`Downloading Excel for assessment ID: ${id}`);
       await assessApi.downloadExcel(id);
+      console.log('Excel download completed successfully');
     } catch (err) {
       console.error('Error downloading Excel:', err);
       setError(`Failed to download Excel: ${err.message || 'Unknown error'}`);
@@ -64,13 +71,18 @@ const AssessmentDetails = () => {
     setActiveTab('student');
   };
 
-  // Helper function to format score with max value (assuming scores are out of 5)
-  const formatScore = (score) => {
+  // Helper function to format score with max value
+  const formatScore = (score, maxPoints) => {
     if (typeof score === 'object' && score.mark !== undefined) {
-      return score.mark; // Return the mark directly from the structured format
+      // If the mark already includes a format like "8.0/10.0", return it as is
+      if (typeof score.mark === 'string' && score.mark.includes('/')) {
+        return score.mark;
+      }
+      // Otherwise, format it with the maxPoints
+      return `${score.mark}/${maxPoints}`;
     }
     if (typeof score !== 'number') return 'N/A';
-    return `${score}/5`;
+    return `${score.toFixed(1)}/${maxPoints}`; // Include the max points from backend
   };
 
   // Helper function to determine if a score is a structured score object
@@ -80,6 +92,7 @@ const AssessmentDetails = () => {
 
   // Helper function to extract numeric value from mark range for calculations
   const getNumericValue = (score) => {
+    // If score is already a number, return it directly without normalization
     if (typeof score === 'number') {
       return score;
     }
@@ -93,18 +106,24 @@ const AssessmentDetails = () => {
       
       // Extract numeric values from various formats
       
+      // Check for fractions like "8.0/10.0" - extract just the first number
+      const fractionWithDecimalMatch = markLower.match(/([\d.]+)\s*\/\s*[\d.]+/);
+      if (fractionWithDecimalMatch) {
+        return parseFloat(fractionWithDecimalMatch[1]);
+      }
+      
       // Check for percentage ranges (e.g., "90-100%")
       const percentRangeMatch = markLower.match(/(\d+)\s*-\s*(\d+)%/);
       if (percentRangeMatch) {
         const min = parseInt(percentRangeMatch[1]);
         const max = parseInt(percentRangeMatch[2]);
-        return (min + max) / 2 / 20; // Convert to 0-5 scale (100% = 5)
+        return (min + max) / 2;
       }
       
       // Check for simple percentage (e.g., "90%")
       const percentMatch = markLower.match(/(\d+)%/);
       if (percentMatch) {
-        return parseInt(percentMatch[1]) / 20; // Convert to 0-5 scale
+        return parseInt(percentMatch[1]);
       }
       
       // Check for ranges like "4-8 Marks"
@@ -112,39 +131,19 @@ const AssessmentDetails = () => {
       if (rangeMatch) {
         const min = parseInt(rangeMatch[1]);
         const max = parseInt(rangeMatch[2]);
-        return (min + max) / 2 / 2; // Normalize to 0-5 scale (assuming 10 is max)
+        return (min + max) / 2;
       }
       
-      // Check for fractions like "4/5"
+      // Check for fractions like "4/5" - don't convert to percentage
       const fractionMatch = markLower.match(/(\d+)\/(\d+)/);
       if (fractionMatch) {
-        const numerator = parseInt(fractionMatch[1]);
-        const denominator = parseInt(fractionMatch[2]);
-        return numerator * 5 / denominator; // Normalize to 0-5 scale
+        return parseInt(fractionMatch[1]);
       }
       
-      // Check for letter grades
-      if (markLower.includes('a+') || markLower.includes('a grade')) return 5;
-      if (markLower.includes('a-') || markLower.includes('b+')) return 4.5;
-      if (markLower.includes('b')) return 4;
-      if (markLower.includes('b-') || markLower.includes('c+')) return 3.5;
-      if (markLower.includes('c')) return 3;
-      if (markLower.includes('c-') || markLower.includes('d+')) return 2.5;
-      if (markLower.includes('d')) return 2;
-      if (markLower.includes('d-')) return 1.5;
-      if (markLower.includes('f')) return 1;
-      
-      // Check for descriptive categories
-      if (markLower.includes('excellent')) return 5;
-      if (markLower.includes('good')) return 4;
-      if (markLower.includes('satisfactory')) return 3;
-      if (markLower.includes('needs improvement')) return 2;
-      if (markLower.includes('unsatisfactory')) return 1;
-      
-      // Check for single values like "0 (No Mark)"
-      const singleMatch = markLower.match(/(\d+)/);
-      if (singleMatch) {
-        return parseInt(singleMatch[1]) / 2; // Normalize to 0-5 scale (assuming 10 is max)
+      // Check for single values like "0 (No Mark)" or "8.0"
+      const decimalMatch = markLower.match(/([\d.]+)/);
+      if (decimalMatch) {
+        return parseFloat(decimalMatch[1]); // Return actual value
       }
     }
     
@@ -248,6 +247,7 @@ const AssessmentDetails = () => {
     return (
       <div className="flex flex-col justify-center items-center h-screen">
         <div className="text-xl mb-4">Assessment not found</div>
+        <div className="text-gray-500 mb-4">ID: {id}</div>
         <button 
           onClick={handleBackClick}
           className="px-4 py-2 bg-blue-500 text-gray-700 rounded hover:bg-blue-600"
@@ -257,18 +257,24 @@ const AssessmentDetails = () => {
       </div>
     );
   }
+  
+  // Log assessment data for debugging
+  console.log('Rendering assessment:', assessment);
 
   // Calculate statistics
   const students = assessment.results || [];
   const totalStudents = students.length;
   
-  // Group students by their score ranges
+  // Get max points from first student result if available
+  const maxPoints = students[0]?.assessment?.max_points || assessment.max_points || 100;
+  
+  // Group students by their percentage ranges
   const scoreRanges = {
-    'Excellent (90-100%)': 0,
-    'Good (80-89%)': 0,
-    'Satisfactory (70-79%)': 0,
-    'Needs Improvement (60-69%)': 0,
-    'Unsatisfactory (0-59%)': 0,
+    'Excellent': 0,
+    'Good': 0,
+    'Satisfactory': 0,
+    'Needs Improvement': 0,
+    'Unsatisfactory': 0,
     'Pending': 0
   };
 
@@ -487,6 +493,7 @@ const AssessmentDetails = () => {
                           // Fall back to numeric calculation if no structured main criterion
                           const avg = criteriaScores.reduce((sum, item) => sum + getNumericValue(item.score), 0) / criteriaScores.length;
                           
+                          // Store just the numeric value for status determination
                           avgScore = avg.toFixed(1);
                           
                           // Determine status based on score or mark
@@ -526,12 +533,12 @@ const AssessmentDetails = () => {
                                 <div className="flex flex-col">
                                   {criteriaScores.slice(0, 3).map((item, i) => (
                                     <span key={i} className="mb-1">
-                                      {item.criterion}: {formatScore(item.score)}
+                                      {item.criterion}: {formatScore(item.score, student.assessment?.max_points || maxPoints)}
                                       {isStructuredScore(item.score) && item.score.justification && (
                                         <span className="block text-xs text-gray-500 ml-2 truncate max-w-xs">
-                                          {item.score.justification.length > 60 
+                                          {typeof item.score.justification === 'string' && item.score.justification.length > 60 
                                             ? `${item.score.justification.substring(0, 60)}...` 
-                                            : item.score.justification}
+                                            : String(item.score.justification || '')}
                                         </span>
                                       )}
                                     </span>
@@ -548,7 +555,11 @@ const AssessmentDetails = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">{avgScore}</div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {typeof avgScore === 'string' && avgScore !== 'N/A' 
+                                ? `${avgScore}/${student.assessment?.max_points || maxPoints}` 
+                                : avgScore}
+                            </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
@@ -577,7 +588,7 @@ const AssessmentDetails = () => {
               <h2 className="text-xl font-semibold mb-4">Assessment Rubric</h2>
               <div className="bg-gray-50 p-4 rounded-lg">
                 <pre className="whitespace-pre-wrap font-mono text-sm">
-                  {assessment.rubric}
+                  {JSON.stringify(assessment.rubric, null, 2)}
                 </pre>
               </div>
             </div>
@@ -629,7 +640,7 @@ const AssessmentDetails = () => {
                                 </td>
                                 <td className="px-6 py-4 whitespace-normal text-sm">
                                   <div className="flex flex-col">
-                                    <span className="font-medium text-gray-900">{formatScore(score)}</span>
+                                    <span className="font-medium text-gray-900">{formatScore(score, selectedStudent.assessment?.max_points || maxPoints)}</span>
                                     {isStructuredScore(score) && score.justification && (
                                       <span className="text-gray-600 text-xs mt-1 italic">
                                         {score.justification}
@@ -650,7 +661,7 @@ const AssessmentDetails = () => {
                                     const scores = Object.values(selectedStudent.scores).filter(score => typeof score === 'number' || isStructuredScore(score));
                                     if (scores.length === 0) return 'N/A';
                                     const avg = scores.reduce((sum, score) => sum + getNumericValue(score), 0) / scores.length;
-                                    return avg.toFixed(1);
+                                    return `${avg.toFixed(1)}/${selectedStudent.assessment?.max_points || maxPoints}`;
                                   })()}
                                 </td>
                               </tr>

@@ -5,6 +5,7 @@ import { assessApi } from "../services/api";
 
 const Dashboard = ({ activeView = "dashboard", onNewAssessment, onViewAssessment }) => {
   const navigate = useNavigate();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
   // Use state for assessments
   const [assessments, setAssessments] = useState([]);
@@ -124,6 +125,13 @@ const Dashboard = ({ activeView = "dashboard", onNewAssessment, onViewAssessment
     } else {
       // Fallback if onViewAssessment is not provided
       console.log("View assessment:", assessment);
+      // Navigate to the assessment details page
+      const assessmentId = assessment._id || assessment.id;
+      if (assessmentId) {
+        navigate(`/assessments/${assessmentId}`);
+      } else {
+        console.error("Assessment has no ID:", assessment);
+      }
     }
   };
 
@@ -156,12 +164,25 @@ const Dashboard = ({ activeView = "dashboard", onNewAssessment, onViewAssessment
     setAssessments(prevAssessments => [...prevAssessments, newAssessment]);
   };
 
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
   // Function to render the assessments list view
   const renderAssessmentsList = () => {
     return (
       <div className="w-full">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Assessments</h1>
+          <div className="flex items-center">
+            <button onClick={toggleSidebar} className="md:hidden mr-4 text-gray-600 hover:text-gray-800 focus:outline-none">
+              <div className="w-6 h-5 flex flex-col justify-between">
+                <span className="block h-0.5 bg-gray-600 rounded-full"></span>
+                <span className="block h-0.5 bg-gray-600 rounded-full"></span>
+                <span className="block h-0.5 bg-gray-600 rounded-full"></span>
+              </div>
+            </button>
+            <h1 className="text-3xl font-bold text-gray-900">Assessments</h1>
+          </div>
           <div className="flex gap-2">
             <button
               onClick={handleAddAssessment}
@@ -211,7 +232,10 @@ const Dashboard = ({ activeView = "dashboard", onNewAssessment, onViewAssessment
                       {assessment.results?.length || 0} students assessed
                     </p>
                     <p className="text-gray-500 text-sm mt-2">
-                      Created: {new Date(assessment.createdAt || Date.now()).toLocaleDateString()}
+                      Created: {new Date(assessment.created_at || assessment.createdAt || Date.now()).toLocaleDateString()}
+                    </p>
+                    <p className="text-gray-400 text-xs mt-1">
+                      ID: {assessment._id || assessment.id || 'Unknown'}
                     </p>
                   </div>
                   <div className="bg-green-100 text-green-800 text-sm font-medium px-3 py-1 rounded-full">
@@ -515,9 +539,9 @@ const Dashboard = ({ activeView = "dashboard", onNewAssessment, onViewAssessment
 
   return (
     <div className="flex min-h-screen bg-gray-100">
-      <Sidebar activeView={activeView} />
+      <Sidebar activeView={activeView} isOpen={isSidebarOpen} />
       
-      <div className="flex-1 p-8 ml-0 md:ml-64">
+      <div className={`flex-1 p-8 ml-0 ${isSidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
         <div className="max-w-7xl mx-auto">
           {loading && (
             <div className="flex flex-col items-center justify-center p-8 text-gray-900">

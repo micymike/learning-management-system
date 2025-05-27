@@ -25,7 +25,11 @@ const ReportViewer = ({ results }) => {
         sum + (typeof score === 'number' ? score : score.mark), 0);
       const average = total / scores.length;
       
-      return average >= 8; // Assuming 10-point scale with 80% passing
+      // Use the max points from the result if available
+      const maxPoints = result.assessment?.max_points || 10;
+      const percentage = (average / maxPoints) * 100;
+      
+      return percentage >= 80; // 80% passing threshold
     }
     
     return false;
@@ -50,7 +54,9 @@ const ReportViewer = ({ results }) => {
         sum + (typeof score === 'number' ? score : score.mark), 0);
       const average = total / scores.length;
       
-      return ((average / 10) * 100).toFixed(1) + '%'; // Assuming 10-point scale
+      // Use the max points from the result if available, otherwise don't normalize
+      const maxPoints = result.assessment?.max_points || 10;
+      return ((average / maxPoints) * 100).toFixed(1) + '%';
     }
     
     return 'N/A';

@@ -22,7 +22,10 @@ except Exception as e:
 
 def format_criterion_for_prompt(criterion):
     """Format a single criterion with its levels for the prompt"""
-    result = f"{criterion['criterion']} [Maximum {criterion['max_points']} points]\n"
+    # If max_points is None, use a default value but preserve the original None
+    max_points = criterion['max_points'] if criterion['max_points'] is not None else 40
+    
+    result = f"{criterion['criterion']} [Maximum {max_points} points]\n"
     if 'levels' in criterion:
         for level in criterion['levels']:
             result += f"- Level ({level['min_points']}-{level['max_points']}): {level['description']}\n"

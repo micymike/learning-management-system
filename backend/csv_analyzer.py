@@ -10,6 +10,14 @@ from flask import send_file
 import io
 import json
 
+def validate_csv_headers(headers):
+    """
+    Validates that the CSV headers contain 'name' and 'repo_url'.
+    """
+    headers_lower = [h.lower() for h in headers]
+    if not ('name' in headers_lower and any(('github' in h or 'repo' in h) and 'url' in h for h in headers_lower)):
+        raise ValueError('CSV file must contain columns for student name and repository URL (e.g., "name" and "repo_url")')
+
 class ScoreManager:
     def __init__(self):
         self.scores = []
@@ -54,92 +62,106 @@ def process_csv(file_storage):
     results = []
     print(f"Processing file: {filename}")  # Debug log
 
-    if filename.endswith('.csv'):
-        content = file_storage.read().decode('utf-8')
-        print(f"CSV Content: {content}")  # Debug log
-        file_storage.seek(0)
-        reader = csv.reader(StringIO(content))
-        print(f"Headers: {next(reader, [])}")  # Debug log
-        file_storage.seek(0)
-        reader = csv.reader(StringIO(content))
-        headers = next(reader, [])
-        headers_lower = [h.lower() for h in headers]
-        for row in reader:
-            if not any(row):
-                continue
-            row_dict = {headers[i]: value for i, value in enumerate(row) if i < len(headers)}
-            student_data = {}
-            for header, value in row_dict.items():
-                if 'name' in header.lower():
-                    student_data['name'] = value.strip()
-                elif any(x in header.lower() for x in ['github', 'repo']) and 'url' in header.lower():
-                    student_data['repo_url'] = value.strip()
-                elif 'group' in header.lower():
-                    student_data['group'] = value.strip()
-                elif 'project' in header.lower():
-                    student_data['project_name'] = value.strip()
-                elif 'deployed' in header.lower() and 'url' in header.lower():
-                    student_data['deployed_url'] = value.strip()
-            if 'name' in student_data and 'repo_url' in student_data:
-                results.append(student_data)
-        return results
-
-    elif filename.endswith('.xlsx') or filename.endswith('.xls'):
-        df = pd.read_excel(file_storage)
-        for _, row in df.iterrows():
-            student_data = {}
-            for col in df.columns:
-                col_lower = col.lower()
-                value = str(row[col]) if not pd.isnull(row[col]) else ''
-                if 'name' in col_lower:
-                    student_data['name'] = value.strip()
-                elif 'github' in col_lower and 'url' in col_lower:
-                    student_data['repo_url'] = value.strip()
-                elif 'group' in col_lower:
-                    student_data['group'] = value.strip()
-                elif 'project' in col_lower:
-                    student_data['project_name'] = value.strip()
-                elif 'deployed' in col_lower and 'url' in col_lower:
-                    student_data['deployed_url'] = value.strip()
-            if 'name' in student_data and 'repo_url' in student_data:
-                results.append(student_data)
-        return results
-
-    elif filename.endswith('.txt'):
-        content = file_storage.read().decode('utf-8')
-        file_storage.seek(0)
-        reader = csv.reader(StringIO(content), delimiter='\t')
-        try:
+    try:
+        if filename.endswith('.csv'):
+            content = file_storage.read().decode('utf-8')
+            print(f"CSV Content: {content}")  # Debug log
+            file_storage.seek(0)
+            reader = csv.reader(StringIO(content))
             headers = next(reader, [])
-            if len(headers) < 2:
-                file_storage.seek(0)
-                reader = csv.reader(StringIO(content), delimiter=',')
-                headers = next(reader, [])
-        except Exception:
-            return []
-        headers_lower = [h.lower() for h in headers]
-        for row in reader:
-            if not any(row):
-                continue
-            row_dict = {headers[i]: value for i, value in enumerate(row) if i < len(headers)}
-            student_data = {}
-            for header, value in row_dict.items():
-                if 'name' in header.lower():
-                    student_data['name'] = value.strip()
-                elif 'github' in header.lower() and 'url' in header.lower():
-                    student_data['repo_url'] = value.strip()
-                elif 'group' in header.lower():
-                    student_data['group'] = value.strip()
-                elif 'project' in header.lower():
-                    student_data['project_name'] = value.strip()
-                elif 'deployed' in header.lower() and 'url' in header.lower():
-                    student_data['deployed_url'] = value.strip()
-            if 'name' in student_data and 'repo_url' in student_data:
-                results.append(student_data)
-        return results
+            validate_csv_headers(headers)
 
-    else:
-        raise ValueError('Unsupported file type. Please upload a .csv, .xlsx, .xls, or .txt file.')
+            file_storage.seek(0)
+            reader = csv.reader(StringIO(content))
+            headers = next(reader, [])
+            headers_lower = [h.lower() for h in headers]
+            for row in reader:
+                if not any(row):
+                    continue
+                row_dict = {headers[i]: value for i, value in enumerate(row) if i < len(headers)}
+                student_data = {}
+                for header, value in row_dict.items():
+                    if 'name' in header.lower():
+                        student_data['name'] = value.strip()
+                    elif any(x in header.lower() for x in ['github', 'repo']) and 'url' in header.lower():
+                        student_data['repo_url'] = value.strip()
+                    elif 'group' in header.lower():
+                        student_data['group'] = value.strip()
+                    elif 'project' in header.lower():
+                        student_data['project_name'] = value.strip()
+                    elif 'deployed' in header.lower() and 'url' in header.lower():
+                        student_data['deployed_url'] = value.strip()
+                if 'name' in student_data and 'repo_url' in student_data:
+                    results.append(student_data)
+            if not results:
+                raise ValueError('No student data found in CSV with required columns (name, repo_url)')
+            return results
+
+        elif filename.endswith(('.xlsx', '.xls')):
+            df = pd.read_excel(file_storage)
+            headers = df.columns.tolist()
+            validate_csv_headers(headers)
+            for _, row in df.iterrows():
+                student_data = {}
+                for col in df.columns:
+                    col_lower = col.lower()
+                    value = str(row[col]) if not pd.isnull(row[col]) else ''
+                    if 'name' in col_lower:
+                        student_data['name'] = value.strip()
+                    elif 'github' in col_lower and 'url' in col_lower:
+                        student_data['repo_url'] = value.strip()
+                    elif 'group' in col_lower:
+                        student_data['group'] = value.strip()
+                    elif 'project' in header.lower():
+                        student_data['project_name'] = value.strip()
+                    elif 'deployed' in header.lower() and 'url' in header.lower():
+                        student_data['deployed_url'] = value.strip()
+                if 'name' in student_data and 'repo_url' in student_data:
+                    results.append(student_data)
+            if not results:
+                raise ValueError('No student data found in Excel with required columns (name, repo_url)')
+            return results
+
+        elif filename.endswith('.txt'):
+            content = file_storage.read().decode('utf-8')
+            file_storage.seek(0)
+            reader = csv.reader(StringIO(content), delimiter='\t')
+            try:
+                headers = next(reader, [])
+                validate_csv_headers(headers)
+                if len(headers) < 2:
+                    file_storage.seek(0)
+                    reader = csv.reader(StringIO(content), delimiter=',')
+                    headers = next(reader, [])
+            except Exception:
+                return []
+            headers_lower = [h.lower() for h in headers]
+            for row in reader:
+                if not any(row):
+                    continue
+                row_dict = {headers[i]: value for i, value in enumerate(row) if i < len(headers)}
+                student_data = {}
+                for header, value in row_dict.items():
+                    if 'name' in header.lower():
+                        student_data['name'] = value.strip()
+                    elif 'github' in header.lower() and 'url' in header.lower():
+                        student_data['repo_url'] = value.strip()
+                    elif 'group' in header.lower():
+                        student_data['group'] = value.strip()
+                    elif 'project' in header.lower():
+                        student_data['project_name'] = value.strip()
+                    elif 'deployed' in header.lower() and 'url' in header.lower():
+                        student_data['deployed_url'] = value.strip()
+                if 'name' in student_data and 'repo_url' in student_data:
+                    results.append(student_data)
+            if not results:
+                raise ValueError('No student data found in TXT with required columns (name, repo_url)')
+            return results
+        else:
+            raise ValueError('Unsupported file type. Please upload a .csv, .xlsx, .xls, or .txt file.')
+
+    except Exception as e:
+        raise ValueError(f"Error processing CSV file: {str(e)}")
 
 def generate_scores_excel(scores):
     """
