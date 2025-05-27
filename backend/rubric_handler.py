@@ -47,6 +47,24 @@ def upload_rubric_file(content):
                 print(f"DataFrame shape: {df.shape}")
                 print(f"DataFrame columns: {df.columns.tolist()}")
                 print(df.head())
+                
+                # Check if this is a tabular rubric format with scoring levels in columns
+                if df.shape[1] >= 2:
+                    # Try to detect if first row contains scoring levels
+                    first_row = df.iloc[0]
+                    has_scoring_levels = False
+                    
+                    # Check if first row contains text like "marks", "points", or scoring patterns
+                    for col in range(1, len(first_row)):
+                        cell_value = str(first_row.iloc[col]).lower() if pd.notna(first_row.iloc[col]) else ""
+                        if any(term in cell_value.lower() for term in ["mark", "point", "score", "correct", "partial"]):
+                            has_scoring_levels = True
+                            break
+                    
+                    if has_scoring_levels:
+                        print("Detected tabular rubric with scoring levels in columns")
+                        return parse_tabular_rubric(df)
+                
             except Exception as pandas_error:
                 print(f"pandas Excel reading failed: {str(pandas_error)}")
                 # Try with different Excel engine
@@ -55,6 +73,24 @@ def upload_rubric_file(content):
                     print("Trying with xlrd engine...")
                     df = pd.read_excel(bytes_io, engine='xlrd')
                     print("Excel content successfully parsed with xlrd engine")
+                    
+                    # Check if this is a tabular rubric format with scoring levels in columns
+                    if df.shape[1] >= 2:
+                        # Try to detect if first row contains scoring levels
+                        first_row = df.iloc[0]
+                        has_scoring_levels = False
+                        
+                        # Check if first row contains text like "marks", "points", or scoring patterns
+                        for col in range(1, len(first_row)):
+                            cell_value = str(first_row.iloc[col]).lower() if pd.notna(first_row.iloc[col]) else ""
+                            if any(term in cell_value.lower() for term in ["mark", "point", "score", "correct", "partial"]):
+                                has_scoring_levels = True
+                                break
+                        
+                        if has_scoring_levels:
+                            print("Detected tabular rubric with scoring levels in columns")
+                            return parse_tabular_rubric(df)
+                    
                 except Exception as xlrd_error:
                     print(f"xlrd engine failed: {str(xlrd_error)}")
                     # Try with openpyxl engine explicitly
@@ -63,6 +99,24 @@ def upload_rubric_file(content):
                         print("Trying with openpyxl engine...")
                         df = pd.read_excel(bytes_io, engine='openpyxl')
                         print("Excel content successfully parsed with openpyxl engine")
+                        
+                        # Check if this is a tabular rubric format with scoring levels in columns
+                        if df.shape[1] >= 2:
+                            # Try to detect if first row contains scoring levels
+                            first_row = df.iloc[0]
+                            has_scoring_levels = False
+                            
+                            # Check if first row contains text like "marks", "points", or scoring patterns
+                            for col in range(1, len(first_row)):
+                                cell_value = str(first_row.iloc[col]).lower() if pd.notna(first_row.iloc[col]) else ""
+                                if any(term in cell_value.lower() for term in ["mark", "point", "score", "correct", "partial"]):
+                                    has_scoring_levels = True
+                                    break
+                            
+                            if has_scoring_levels:
+                                print("Detected tabular rubric with scoring levels in columns")
+                                return parse_tabular_rubric(df)
+                        
                     except Exception as openpyxl_engine_error:
                         print(f"openpyxl engine failed: {str(openpyxl_engine_error)}")
                         raise
@@ -269,7 +323,7 @@ def parse_rubric_lines(lines):
         # If no criteria were found, use the default rubric
         if not criteria:
             print("No criteria found in rubric, using default rubric")
-            return load_rubric()
+            return []
             
         return criteria
         
@@ -277,20 +331,153 @@ def parse_rubric_lines(lines):
         print(f"Error parsing rubric: {str(e)}")
         # Return default rubric on error
         print("Error parsing rubric, using default criteria")
-        return load_rubric()
+        return []
 
-def load_rubric():
+# Global variable to store custom rubric
+custom_rubric = None
+
+def parse_tabular_rubric(df):
     """
-    Load default rubric criteria with predefined points
+    Parse a tabular rubric where:
+    - First row contains scoring levels (e.g., "0 (No Mark)", "1-3 Marks", etc.)
+    - First column contains criteria names
+    - Cells contain descriptions for each criterion at each level
+    
+    Returns a list of dictionaries with criteria and max_points
     """
-    # Return a default rubric with standard criteria
-    return [
-        {"criterion": "Code Correctness", "max_points": 12},
-        {"criterion": "Code Structure", "max_points": 8},
-        {"criterion": "Documentation", "max_points": 8},
-        {"criterion": "Error Handling", "max_points": 8},
-        {"criterion": "Testing", "max_points": 8}
-    ]
+    global custom_rubric
+    try:
+        print("\nParsing tabular rubric format...")
+        
+        # Get scoring levels from first row
+        scoring_levels = []
+        max_points_per_criterion = {}
+        
+        # Skip first cell (usually empty or contains "Criteria")
+        for col in range(1, df.shape[1]):
+            cell_value = str(df.iloc[0, col]) if pd.notna(df.iloc[0, col]) else ""
+            if cell_value:
+                # Extract point values using regex
+                points_match = re.search(r'(\d+)(?:\s*-\s*(\d+))?\s*(?:Marks|Mark|Points|Point)', cell_value, re.IGNORECASE)
+                if points_match:
+                    # If range like "1-3 Marks", use the higher value
+                    if points_match.group(2):
+                        points = float(points_match.group(2))
+                    else:
+                        points = float(points_match.group(1))
+                    
+                    scoring_levels.append({
+                        'text': cell_value,
+                        'points': points
+                    })
+                    print(f"Found scoring level: {cell_value} -> {points} points")
+                else:
+                    # If no explicit points, try to find any number
+                    number_match = re.search(r'(\d+)', cell_value)
+                    if number_match:
+                        points = float(number_match.group(1))
+                        scoring_levels.append({
+                            'text': cell_value,
+                            'points': points
+                        })
+                        print(f"Found scoring level with number: {cell_value} -> {points} points")
+                    else:
+                        # If no numbers, use position as points (1-based)
+                        points = col
+                        scoring_levels.append({
+                            'text': cell_value,
+                            'points': points
+                        })
+                        print(f"No points found, using position: {cell_value} -> {points} points")
+        
+        # If no scoring levels found, return default rubric
+        if not scoring_levels:
+            print("No scoring levels found in tabular rubric")
+            return load_rubric()
+        
+        # Get maximum points for each criterion (highest value in scoring levels)
+        max_points = max(level['points'] for level in scoring_levels)
+        print(f"Maximum points per criterion: {max_points}")
+        
+        # Parse criteria from first column (starting from second row)
+        criteria = []
+        for row in range(1, df.shape[0]):
+            criterion_name = str(df.iloc[row, 0]) if pd.notna(df.iloc[row, 0]) else ""
+            if not criterion_name:
+                continue
+                
+            # Clean up criterion name (remove any trailing colons)
+            criterion_name = criterion_name.strip().rstrip(':')
+            
+            # If criterion name starts with "Main Criterion:" or similar, keep the full name
+            # This is important for matching the exact criterion name in the assessment
+            
+            print(f"\nFound criterion: {criterion_name}")
+            
+            # Create criterion object
+            criterion = {
+                'criterion': criterion_name,
+                'max_points': max_points,
+                'levels': []
+            }
+            
+            # Add descriptions for each scoring level
+            for col, level in enumerate(scoring_levels, start=1):
+                if col < df.shape[1]:
+                    description = str(df.iloc[row, col]) if pd.notna(df.iloc[row, col]) else ""
+                    if description:
+                        level_info = {
+                            'points': level['points'],
+                            'description': description
+                        }
+                        criterion['levels'].append(level_info)
+                        print(f"  Level {level['text']}: {description[:50]}...")
+            
+            criteria.append(criterion)
+        
+        # If no criteria found, return default rubric
+        if not criteria:
+            print("No criteria found in tabular rubric")
+            return load_rubric()
+            
+        print(f"\nParsed {len(criteria)} criteria from tabular rubric")
+        # Store the custom rubric in the global variable
+        global custom_rubric
+        custom_rubric = criteria
+        return criteria
+        
+    except Exception as e:
+        print(f"Error parsing tabular rubric: {str(e)}")
+        return []
+
+def load_rubric(file_path):
+    """Load rubric from either Excel or text file"""
+    if file_path.endswith('.xlsx'):
+        # Read Excel file
+        df = pd.read_excel(file_path)
+        rubric = []
+        for _, row in df.iterrows():
+            criterion = {
+                'criterion': row['Criterion'],
+                'max_points': float(row['Max Points']),
+                'levels': []
+            }
+            # Assuming levels are in columns named Level1, Level2, etc.
+            level_cols = [col for col in df.columns if col.startswith('Level')]
+            for i, level_col in enumerate(level_cols, 1):
+                if pd.notna(row[level_col]):
+                    criterion['levels'].append({
+                        'level': i,
+                        'description': row[level_col],
+                        'min_points': float(row[f'Level{i}_Min']),
+                        'max_points': float(row[f'Level{i}_Max'])
+                    })
+            rubric.append(criterion)
+        return rubric
+    else:
+        # Existing text file handling
+        with open(file_path, 'r') as f:
+            return json.load(f)
 
 def calculate_percentage(points, max_points):
     """Calculate percentage score from points"""

@@ -9,7 +9,7 @@ import pandas as pd
 import os
 import json
 from datetime import datetime
-from AI_assessor import assess_code, client
+from AI_assessor import assess_code
 from repo_analyzer import analyze_github_repo
 from csv_analyzer import process_csv
 from rubric_handler import upload_rubric_file, load_rubric, parse_rubric_lines, calculate_percentage, is_passing_grade
@@ -203,17 +203,13 @@ def upload_csv():
                 
                 rubric_items = upload_rubric_file(rubric_content)
                 if not rubric_items:
-                    print("Error: No valid criteria found in rubric, using default rubric")
-                    # Use the default rubric from rubric_handler
-                    from rubric_handler import load_rubric
-                    rubric_items = load_rubric()
-                    print(f"Using default rubric: {json.dumps(rubric_items, indent=2)}")
+                    error_msg = "No valid criteria found in uploaded rubric. Please upload a valid rubric file."
+                    print("Error:", error_msg)
+                    return jsonify({"error": error_msg}), 400
             except Exception as e:
-                print(f"Error processing rubric: {str(e)}")
-                print("Using default rubric instead")
-                from rubric_handler import load_rubric
-                rubric_items = load_rubric()
-                print(f"Using default rubric: {json.dumps(rubric_items, indent=2)}")
+                error_msg = f"Error processing rubric: {str(e)}"
+                print("Error:", error_msg)
+                return jsonify({"error": error_msg}), 400
                 
             print("\nParsed rubric items:")
             print(json.dumps(rubric_items, indent=2))
@@ -271,7 +267,7 @@ def upload_csv():
                 print(f"Retrieved code ({len(code_str)} chars)")
                 
                 # Assess code
-                assessment = assess_code(code_str, rubric_items, client)
+                assessment = assess_code(code_str, rubric_items)
                 print(f"\nAssessment results for {name}:")
                 print(json.dumps(assessment, indent=2))
                 

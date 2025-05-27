@@ -21,8 +21,8 @@ for cell in ws[1]:
     cell.fill = PatternFill(start_color="DDDDDD", end_color="DDDDDD", fill_type="solid")
 
 # Add data
-ws['A2'] = "Main Criterion: Correctness of Code"
-ws['B2'] = 12
+ws['A2'] = ""
+ws['B2'] = ""
 ws['C2'] = "Incorrect Code - The code provided by the student is fundamentally incorrect, and it does not fulfill the specified requirements."
 ws['D2'] = "The code contains some correct elements but also includes significant errors that impact its functionality."
 ws['E2'] = "The majority of the code is correct, with only minor errors that do not significantly affect its overall functionality."

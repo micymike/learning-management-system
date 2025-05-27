@@ -1,60 +1,77 @@
-"""
-Sample code for testing rubric assessment
-"""
 
-def calculate_fibonacci(n):
-    """
-    Calculate the nth Fibonacci number
-    
-    Args:
-        n (int): The position in the Fibonacci sequence
-        
-    Returns:
-        int: The nth Fibonacci number
-    """
-    if n <= 0:
-        raise ValueError("Input must be a positive integer")
-    elif n == 1:
-        return 0
-    elif n == 2:
-        return 1
-    else:
-        a, b = 0, 1
-        for _ in range(2, n):
-            a, b = b, a + b
-        return b
+import os
+import base64
+from openai import AzureOpenAI
 
-class DataProcessor:
-    """A simple class to process data"""
-    
-    def __init__(self, data=None):
-        """Initialize with optional data"""
-        self.data = data or []
-        
-    def add_item(self, item):
-        """Add an item to the data list"""
-        self.data.append(item)
-        
-    def get_sum(self):
-        """Return the sum of all items"""
-        return sum(self.data)
-        
-    def get_average(self):
-        """Return the average of all items"""
-        if not self.data:
-            return 0
-        return self.get_sum() / len(self.data)
+endpoint = os.getenv("ENDPOINT_URL", "https://kidus-mafuwv4a-eastus2.cognitiveservices.azure.com/")
+deployment = os.getenv("DEPLOYMENT_NAME", "gpt-4.1")
+subscription_key = "8ZlW0fgGBZH3YfSEUJrTvgxMNuHBZ1ANPXl12MHGzURPjHnrsKWFJQQJ99BEACHYHv6XJ3w3AAAAACOGJyfI"
 
-# Example usage
-if __name__ == "__main__":
-    # Calculate and print the 10th Fibonacci number
-    fib_number = calculate_fibonacci(10)
-    print(f"The 10th Fibonacci number is: {fib_number}")
+# Initialize Azure OpenAI client with key-based authentication
+client = AzureOpenAI(
+    azure_endpoint=endpoint,
+    api_key=subscription_key,
+    api_version="2025-01-01-preview",
+)
+
+# IMAGE_PATH = "YOUR_IMAGE_PATH"
+# encoded_image = base64.b64encode(open(IMAGE_PATH, 'rb').read()).decode('ascii')
+
+#Prepare the chat prompt
+chat_prompt = [
+    {
+        "role": "system",
+        "content": [
+            {
+                "type": "text",
+                "text": "You are an AI assistant that helps people find information."
+            }
+        ]
+    },
+    {
+        "role": "user",
+        "content": [
+            {
+                "type": "text",
+                "text": "I am going to Paris, what should I see?"
+            }
+        ]
+    },
+    {
+        "role": "assistant",
+        "content": [
+            {
+                "type": "text",
+                "text": "Paris, the capital of France, is known for its stunning architecture, art museums, historical landmarks, and romantic atmosphere. Here are some of the top attractions to see in Paris:\n\n1. The Eiffel Tower: The iconic Eiffel Tower is one of the most recognizable landmarks in the world and offers breathtaking views of the city.\n2. The Louvre Museum: The Louvre is one of the world's largest and most famous museums, housing an impressive collection of art and artifacts, including the Mona Lisa.\n3. Notre-Dame Cathedral: This beautiful cathedral is one of the most famous landmarks in Paris and is known for its Gothic architecture and stunning stained glass windows.\n\nThese are just a few of the many attractions that Paris has to offer. With so much to see and do, it's no wonder that Paris is one of the most popular tourist destinations in the world."
+            }
+        ]
+    },
+    {
+        "role": "user",
+        "content": [
+            {
+                "type": "text",
+                "text": "What is so great about #1?"
+            }
+        ]
+    }
+]
+
+# Include speech result if speech is enabled
+messages = chat_prompt
+
+# Generate the completion
+completion = client.chat.completions.create(
+    model=deployment,
+    messages=messages,
+    max_tokens=800,
+    temperature=0.7,
+    top_p=0.95,
+    frequency_penalty=0,
+    presence_penalty=0,
+    stop=None,
+    stream=False
+)
+
+print(completion.to_json())
     
-    # Create a data processor and add some numbers
-    processor = DataProcessor()
-    for i in range(1, 6):
-        processor.add_item(i)
-    
-    print(f"Sum: {processor.get_sum()}")
-    print(f"Average: {processor.get_average()}")

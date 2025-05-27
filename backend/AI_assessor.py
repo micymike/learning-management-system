@@ -14,11 +14,19 @@ import dotenv
 
 dotenv.load_dotenv()
 
-try:
-    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-except Exception as e:
-    print(f"Error: {e} check your environment for openai key")
-    exit(1)
+# Azure OpenAI configuration
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_BASE = os.getenv("OPENAI_API_BASE")
+OPENAI_API_TYPE = os.getenv("OPENAI_API_TYPE", "azure")
+OPENAI_API_VERSION = os.getenv("OPENAI_API_VERSION", "2023-05-15")
+OPENAI_DEPLOYMENT_NAME = os.getenv("OPENAI_DEPLOYMENT_NAME")
+
+# Set OpenAI environment variables for Azure
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY or ""
+os.environ["OPENAI_API_BASE"] = OPENAI_API_BASE or ""
+os.environ["OPENAI_API_TYPE"] = OPENAI_API_TYPE or "azure"
+os.environ["OPENAI_API_VERSION"] = OPENAI_API_VERSION or "2023-05-15"
+# No client object needed for openai v1.x or v0.x
 
 def format_criterion_for_prompt(criterion):
     """Format a single criterion with its levels for the prompt"""
@@ -31,7 +39,7 @@ def format_criterion_for_prompt(criterion):
             result += f"- Level ({level['min_points']}-{level['max_points']}): {level['description']}\n"
     return result
 
-def assess_code(code, rubric, client):
+def assess_code(code, rubric, client=None):
     """
     Assesses code using structured rubric criteria with defined scoring levels.
     
@@ -42,14 +50,18 @@ def assess_code(code, rubric, client):
     """
     print("Assessing code with rubric:")
     print(json.dumps(rubric, indent=2))
-
+    
+    # Always use the rubric provided as an argument; do not override with global or default rubric
+    if not rubric:
+        raise ValueError("No rubric provided for assessment. Please upload a rubric file.")
+    
     # Format rubric for prompt
     rubric_prompt = "Assessment Criteria:\n\n"
     total_max_points = 0
     
     for criterion in rubric:
         rubric_prompt += format_criterion_for_prompt(criterion) + "\n"
-        total_max_points += criterion['max_points']
+        total_max_points += criterion['max_points'] if 'max_points' in criterion and criterion['max_points'] is not None else 0
     
     analysis_system_prompt = f"""You are an expert code assessor. Analyze the code according to these criteria:
 
@@ -71,16 +83,16 @@ Provide detailed analysis for each criterion, citing specific code examples."""
     try:
         # First pass: Detailed analysis
         print("Getting detailed analysis...")
-        analysis_response = client.chat.completions.create(
-            model="gpt-3.5-turbo-0125",
+        analysis_response = openai.ChatCompletion.create(
+            deployment_id=OPENAI_DEPLOYMENT_NAME,
             messages=[
                 {"role": "system", "content": analysis_system_prompt},
                 {"role": "user", "content": analysis_user_prompt}
             ],
             temperature=0.3
         )
-        
-        code_analysis = analysis_response.choices[0].message.content
+
+        code_analysis = analysis_response["choices"][0]["message"]["content"]
         print("\nCode Analysis:")
         print(code_analysis)
 
@@ -110,8 +122,8 @@ Analysis:
 Provide detailed scoring for each criterion."""
 
         print("\nGetting scores...")
-        scoring_response = client.chat.completions.create(
-            model="gpt-3.5-turbo-0125",
+        scoring_response = openai.ChatCompletion.create(
+            deployment_id=OPENAI_DEPLOYMENT_NAME,
             messages=[
                 {"role": "system", "content": scoring_system_prompt},
                 {"role": "user", "content": scoring_user_prompt}
@@ -119,7 +131,7 @@ Provide detailed scoring for each criterion."""
             temperature=0.2
         )
 
-        assessment_text = scoring_response.choices[0].message.content
+        assessment_text = scoring_response["choices"][0]["message"]["content"]
         print("\nScoring Response:")
         print(assessment_text)
 
