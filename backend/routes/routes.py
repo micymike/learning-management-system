@@ -12,7 +12,7 @@ from datetime import datetime
 from AI_assessor import assess_code
 from repo_analyzer import analyze_github_repo
 from csv_analyzer import process_csv
-from rubric_handler import upload_rubric_file, load_rubric, parse_rubric_lines, calculate_percentage, is_passing_grade
+from rubric_handler import upload_rubric_file, calculate_percentage, is_passing_grade
 import openai
 from dotenv import load_dotenv
 from models import Assessment, Student, StudentAssessment
@@ -307,7 +307,7 @@ def upload_csv():
             print("\nSaving assessment to database...")
             new_assessment = Assessment(
                 name=assessment_name,
-                rubric=rubric_items,
+                rubric=[rubric_items],
                 results=results
             ).save()
             
