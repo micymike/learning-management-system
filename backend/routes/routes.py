@@ -11,7 +11,7 @@ import json
 from datetime import datetime
 from AI_assessor import assess_code
 from repo_analyzer import analyze_github_repo
-from csv_analyzer import process_csv
+from csv_analyzer import process_csv, generate_scores_excel
 from rubric_handler import upload_rubric_file, calculate_percentage, is_passing_grade
 import openai
 from dotenv import load_dotenv
@@ -332,6 +332,23 @@ def upload_csv():
                     "created_at": new_assessment.created_at.isoformat()
                 }
             }
+            
+            # Check if Excel download was requested
+            if request.args.get('format') == 'excel':
+                try:
+                    # Generate Excel file
+                    excel_file = generate_scores_excel(results)
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    return send_file(
+                        excel_file,
+                        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        as_attachment=True,
+                        download_name=f"assessment_scores_{timestamp}.xlsx"
+                    )
+                except Exception as excel_error:
+                    print(f"Error generating Excel: {excel_error}")
+                    # Fall back to JSON response
+            
             print("\nSending response:", json.dumps(response_data, indent=2))
             return jsonify(response_data)
             
@@ -507,7 +524,6 @@ def download_excel(assessment_id):
     
     try:
         # Use the improved Excel export from csv_analyzer
-        from csv_analyzer import generate_scores_excel
         output = generate_scores_excel(results)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         response = send_file(
