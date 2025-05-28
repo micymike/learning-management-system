@@ -529,7 +529,26 @@ const AssessmentDetails = () => {
                           </td>
                           <td className="px-6 py-4">
                             <div className="text-sm text-gray-900">
-                              {criteriaScores.length > 0 ? (
+                              {/* Render new extracted_scores if present */}
+                              {student.scores && Array.isArray(student.scores.extracted_scores) && student.scores.extracted_scores.length > 0 ? (
+                                <div className="flex flex-col">
+                                  {student.scores.extracted_scores.slice(0, 3).map((scoreObj, i) => (
+                                    <span key={i} className="mb-1">
+                                      {scoreObj.context}
+                                      {typeof scoreObj.score === "number" && typeof scoreObj.max_score === "number" && (
+                                        <span className="ml-2 text-xs text-gray-500">
+                                          ({scoreObj.score}/{scoreObj.max_score} | {Math.round(scoreObj.percentage)}%)
+                                        </span>
+                                      )}
+                                    </span>
+                                  ))}
+                                  {student.scores.extracted_scores.length > 3 && (
+                                    <span className="text-gray-500 text-xs">
+                                      +{student.scores.extracted_scores.length - 3} more criteria
+                                    </span>
+                                  )}
+                                </div>
+                              ) : criteriaScores.length > 0 ? (
                                 <div className="flex flex-col">
                                   {criteriaScores.slice(0, 3).map((item, i) => (
                                     <span key={i} className="mb-1">
@@ -633,23 +652,45 @@ const AssessmentDetails = () => {
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
-                            {Object.entries(selectedStudent.scores).map(([criterion, score], index) => (
-                              <tr key={index}>
-                                <td className="px-6 py-4 whitespace-normal text-sm text-gray-900">
-                                  {criterion}
-                                </td>
-                                <td className="px-6 py-4 whitespace-normal text-sm">
-                                  <div className="flex flex-col">
-                                    <span className="font-medium text-gray-900">{formatScore(score, selectedStudent.assessment?.max_points || maxPoints)}</span>
-                                    {isStructuredScore(score) && score.justification && (
-                                      <span className="text-gray-600 text-xs mt-1 italic">
-                                        {score.justification}
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
+                            {/* Render new extracted_scores if present */}
+                            {selectedStudent.scores && Array.isArray(selectedStudent.scores.extracted_scores) && selectedStudent.scores.extracted_scores.length > 0 ? (
+                              selectedStudent.scores.extracted_scores.map((scoreObj, index) => (
+                                <tr key={index}>
+                                  <td className="px-6 py-4 whitespace-normal text-sm text-gray-900">
+                                    {scoreObj.context}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-normal text-sm">
+                                    <div className="flex flex-col">
+                                      {typeof scoreObj.score === "number" && typeof scoreObj.max_score === "number" ? (
+                                        <span className="font-medium text-gray-900">
+                                          {scoreObj.score}/{scoreObj.max_score} ({Math.round(scoreObj.percentage)}%)
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-500">N/A</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              Object.entries(selectedStudent.scores).map(([criterion, score], index) => (
+                                <tr key={index}>
+                                  <td className="px-6 py-4 whitespace-normal text-sm text-gray-900">
+                                    {criterion}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-normal text-sm">
+                                    <div className="flex flex-col">
+                                      <span className="font-medium text-gray-900">{formatScore(score, selectedStudent.assessment?.max_points || maxPoints)}</span>
+                                      {isStructuredScore(score) && score.justification && (
+                                        <span className="text-gray-600 text-xs mt-1 italic">
+                                          {score.justification}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
                             {/* Add average row at the bottom */}
                             {Object.values(selectedStudent.scores).some(score => typeof score === 'number' || isStructuredScore(score)) && (
                               <tr className="bg-gray-50">

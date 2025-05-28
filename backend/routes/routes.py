@@ -506,85 +506,16 @@ def download_excel(assessment_id):
         return jsonify({"error": "Failed to fetch assessment"}), 500
     
     try:
-        # Create DataFrame
-        rows = []
-        for result in results:
-            row = {
-                'Name': result['name'],
-                'Repository': result['repo_url']
-            }
-            
-            if 'scores' in result:
-                scores = result['scores']
-                if 'criteria_scores' in scores:
-                    for criterion, data in scores['criteria_scores'].items():
-                        row[f"{criterion} (Points)"] = f"{data.get('points', 0)}/{data.get('max_points', 0)}"
-                        if 'justification' in data:
-                            row[f"{criterion} (Justification)"] = data['justification']
-                    
-                    row['Total Points'] = f"{scores.get('total_points', 0)}/{scores.get('max_points', 0)}"
-                    row['Percentage'] = f"{scores.get('percentage', 0)}%"
-                    row['Status'] = "PASS" if scores.get('passing', False) else "FAIL"
-                
-                elif isinstance(scores, dict):
-                    for criterion, score in scores.items():
-                        if isinstance(score, dict) and 'mark' in score:
-                            # Use the actual max points from the rubric
-                            max_points = None
-                            for crit in assessment.rubric:
-                                if crit['criterion'] == criterion:
-                                    max_points = crit['max_points']
-                                    break
-                            
-                            # Format the mark with the actual max points
-                            if max_points is not None and not str(score.get('mark', '')).endswith(f'/{max_points}'):
-                                row[f"{criterion} (Points)"] = f"{score.get('mark', 'N/A')}/{max_points}"
-                            else:
-                                row[f"{criterion} (Points)"] = score.get('mark', 'N/A')
-                            
-                            row[f"{criterion} (Justification)"] = score.get('justification', '')
-                        else:
-                            row[criterion] = score
-                            
-            rows.append(row)
-        
-        df = pd.DataFrame(rows)
-        
-        # Write to Excel with formatting
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name='Scores', index=False)
-            worksheet = writer.sheets['Scores']
-            
-            # Format header
-            for col in range(len(df.columns)):
-                cell = worksheet.cell(row=1, column=col + 1)
-                cell.fill = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid')
-                cell.font = Font(color='FFFFFF', bold=True)
-                
-                # Set column widths
-                if 'Justification' in df.columns[col]:
-                    worksheet.column_dimensions[cell.column_letter].width = 50
-                else:
-                    max_length = max(len(str(cell.value)) for cell in worksheet[cell.column_letter])
-                    worksheet.column_dimensions[cell.column_letter].width = min(max_length + 2, 40)
-                
-                # Format justification cells for better readability
-                if 'Justification' in df.columns[col]:
-                    for row in range(2, len(df) + 2):
-                        cell = worksheet.cell(row=row, column=col + 1)
-                        cell.alignment = Alignment(wrap_text=True, vertical='top')
-        
-        output.seek(0)
+        # Use the improved Excel export from csv_analyzer
+        from csv_analyzer import generate_scores_excel
+        output = generate_scores_excel(results)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
         response = send_file(
             output,
             as_attachment=True,
             download_name=f"assessment_scores_{timestamp}.xlsx",
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        # CORS headers are already added by the @cross_origin decorator
-        # Don't add them again to avoid duplicates
         print(f"Excel file created successfully for assessment: {assessment.name}")
         return response
 
