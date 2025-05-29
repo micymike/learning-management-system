@@ -22,6 +22,46 @@ load_dotenv()
 # Initialize routes blueprint
 routes_blueprint = Blueprint('routes', __name__)
 
+@routes_blueprint.route("/analytics", methods=["GET", "OPTIONS"])
+@cross_origin(origins=["http://localhost:5173"], supports_credentials=True)
+def get_analytics():
+    """Get analytics summary: total students, total assessments, average score"""
+    if request.method == "OPTIONS":
+        response = current_app.make_default_options_response()
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Origin,X-Requested-With,Accept')
+        response.headers.add('Access-Control-Allow-Methods', 'GET')
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
+    try:
+        total_students = Student.objects.count()
+        total_assessments = Assessment.objects.count()
+        # Compute average score from StudentAssessment.scores['total'] if present
+        student_assessments = StudentAssessment.objects()
+        total_score = 0
+        count = 0
+        for sa in student_assessments:
+            scores = sa.scores
+            # Try 'total', 'percentage', or 'score' keys
+            score = None
+            for key in ['total', 'percentage', 'score']:
+                if key in scores and isinstance(scores[key], (int, float)):
+                    score = scores[key]
+                    break
+            if score is not None:
+                total_score += score
+                count += 1
+        average_score = round(total_score / count, 2) if count > 0 else None
+        return jsonify({
+            "success": True,
+            "total_students": total_students,
+            "total_assessments": total_assessments,
+            "average_score": average_score
+        })
+    except Exception as e:
+        print(f"Error in get_analytics: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @routes_blueprint.route("/upload_csv", methods=["POST", "OPTIONS"])
 @cross_origin(origins=["http://localhost:5173"], supports_credentials=True)
 def upload_csv():

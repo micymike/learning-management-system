@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import Dashboard from "./components/Dashboard";
@@ -14,12 +14,13 @@ import './index.css';
 function AppWrapper() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   return (
     <div className="bg-gradient-to-br from-gray-50 via-white to-gray-100 min-h-screen">
       <div className="flex">
-        <Sidebar />
-        <main className="flex-1 p-10 md:p-16">
+        <Sidebar isOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} />
+        <main className={`flex-1 p-10 md:p-16 transition-all duration-300 ${isSidebarOpen ? 'ml-72' : 'ml-20'}`}>
           <div className="max-w-5xl mx-auto bg-white rounded-3xl shadow-2xl p-10 min-h-[75vh] border border-gray-100">
             <AnimatePresence mode="wait">
               <Routes location={location} key={location.pathname}>
