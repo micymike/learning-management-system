@@ -11,5 +11,11 @@ requests
 aiohttp
 black
 pytest
-langchain==0.1.19
-langchain-community==0.0.38
+langchain
+langchain-core
+langchain-community
+langchain-chroma
+langchain-openai
+langchain-pinecone
+langchain-tests
+langchain-text-splitters
