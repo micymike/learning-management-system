@@ -369,7 +369,34 @@ const AssessmentDetails = () => {
 
       <div className="bg-white shadow-md rounded-lg overflow-hidden mb-8">
         <div className="p-6">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">{assessment.name}</h1>
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-2xl font-bold text-gray-800">{assessment.name}</h1>
+            <button
+              onClick={async () => {
+                if (!assessment._id && !assessment.id) {
+                  alert("Assessment ID is missing or invalid. Cannot delete.");
+                  return;
+                }
+                if (window.confirm("Are you sure you want to delete this assessment? This action cannot be undone.")) {
+                  try {
+                    const idToDelete = assessment._id || assessment.id;
+                    if (!idToDelete) {
+                      alert("Assessment ID is missing or invalid. Cannot delete.");
+                      return;
+                    }
+                    await assessApi.deleteAssessment(idToDelete);
+                    navigate('/');
+                    return;
+                  } catch (err) {
+                    alert("Failed to delete assessment: " + (err.message || err));
+                  }
+                }
+              }}
+              className="ml-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+            >
+              Delete Assessment
+            </button>
+          </div>
           <p className="text-gray-600 mb-4">
             Created: {new Date(assessment.created_at).toLocaleString()}
           </p>
@@ -549,39 +576,31 @@ const AssessmentDetails = () => {
                               {/* Render new extracted_scores if present */}
                               {student.scores && Array.isArray(student.scores.extracted_scores) && student.scores.extracted_scores.length > 0 ? (
                                 <div className="flex flex-col">
-                                  {student.scores.extracted_scores.slice(0, 3).map((scoreObj, i) => (
-                                    <span key={i} className="mb-1">
-                                      {scoreObj.context}
-                                      {typeof scoreObj.score === "number" && typeof scoreObj.max_score === "number" && (
-                                        <span className="ml-2 text-xs text-gray-500">
-                                          ({scoreObj.score}/{scoreObj.max_score} | {Math.round(scoreObj.percentage)}%)
-                                        </span>
-                                      )}
-                                    </span>
-                                  ))}
-                                  {student.scores.extracted_scores.length > 3 && (
+                                  {student.scores.extracted_scores
+                                    .filter(scoreObj =>
+                                      typeof scoreObj.context === "string" &&
+                                      !/^\d+%$/.test(scoreObj.context.trim())
+                                    )
+                                    .slice(0, 3)
+                                    .map((scoreObj, i) => (
+                                      <span key={i} className="mb-1">
+                                        {scoreObj.context}
+                                        {typeof scoreObj.score === "number" && typeof scoreObj.max_score === "number" && (
+                                          <span className="ml-2 text-xs text-gray-500">
+                                            ({scoreObj.score}/{scoreObj.max_score} | {Math.round(scoreObj.percentage)}%)
+                                          </span>
+                                        )}
+                                      </span>
+                                    ))}
+                                  {student.scores.extracted_scores.filter(scoreObj =>
+                                    typeof scoreObj.context === "string" &&
+                                    !/^\d+%$/.test(scoreObj.context.trim())
+                                  ).length > 3 && (
                                     <span className="text-gray-500 text-xs">
-                                      +{student.scores.extracted_scores.length - 3} more criteria
-                                    </span>
-                                  )}
-                                </div>
-                              ) : criteriaScores.length > 0 ? (
-                                <div className="flex flex-col">
-                                  {criteriaScores.slice(0, 3).map((item, i) => (
-                                    <span key={i} className="mb-1">
-                                      {item.criterion}: {formatScore(item.score, student.assessment?.max_points || maxPoints)}
-                                      {isStructuredScore(item.score) && item.score.justification && (
-                                        <span className="block text-xs text-gray-500 ml-2 truncate max-w-xs">
-                                          {typeof item.score.justification === 'string' && item.score.justification.length > 60 
-                                            ? `${item.score.justification.substring(0, 60)}...` 
-                                            : String(item.score.justification || '')}
-                                        </span>
-                                      )}
-                                    </span>
-                                  ))}
-                                  {criteriaScores.length > 3 && (
-                                    <span className="text-gray-500 text-xs">
-                                      +{criteriaScores.length - 3} more criteria
+                                      +{student.scores.extracted_scores.filter(scoreObj =>
+                                        typeof scoreObj.context === "string" &&
+                                        !/^\d+%$/.test(scoreObj.context.trim())
+                                      ).length - 3} more criteria
                                     </span>
                                   )}
                                 </div>

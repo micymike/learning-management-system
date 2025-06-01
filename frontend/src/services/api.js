@@ -14,7 +14,7 @@ async function fetchWithErrorHandling(url, options = {}) {
       ? options.headers
       : {
           'Content-Type': 'application/json',
-          ...options.headers,
+          ...options.headers
         };
 
     // For debugging
@@ -75,7 +75,7 @@ async function fetchWithErrorHandling(url, options = {}) {
     if (contentDisposition && contentDisposition.includes('attachment')) {
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const filename = contentDisposition.split('filename=')[1]?.replace(/"/g, '');
+      const filename = contentDisposition.split('filename=')[1]?.replace(/\"/g, '');
       if (!filename) {
         throw new Error('No filename provided in response headers');
       }
@@ -153,6 +153,16 @@ export const assessApi = {
       // Try to convert numeric ID to string if needed
       const assessmentId = String(id);
       
+      // Validate ObjectId format (24 hex characters)
+      if (!/^[0-9a-fA-F]{24}$/.test(assessmentId)) {
+        console.error(`Invalid ObjectId format: ${assessmentId}`);
+        return { 
+          success: false, 
+          error: 'Invalid assessment ID format', 
+          redirect: true 
+        };
+      }
+      
       console.log(`Fetching assessment with ID: ${assessmentId}`);
       
       const response = await fetchWithErrorHandling(`${API_URL}/assessments/${assessmentId}`, {
@@ -188,6 +198,27 @@ export const assessApi = {
       }
       
       console.error('Error getting assessment:', error);
+      throw error;
+    }
+  },
+  
+  // Delete an assessment by ID
+  deleteAssessment: async (id) => {
+    try {
+      if (!id) throw new Error('Assessment ID is required');
+      
+      // Validate ObjectId format
+      if (!/^[0-9a-fA-F]{24}$/.test(String(id))) {
+        throw new Error('Invalid assessment ID format');
+      }
+      
+      const response = await fetchWithErrorHandling(`${API_URL}/assessments/${id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      return response;
+    } catch (error) {
+      console.error('Error deleting assessment:', error);
       throw error;
     }
   },
@@ -304,6 +335,11 @@ export const assessApi = {
   
   getStudent: async (studentId) => {
     try {
+      // Validate ObjectId format
+      if (!studentId || !/^[0-9a-fA-F]{24}$/.test(String(studentId))) {
+        throw new Error('Invalid student ID format');
+      }
+      
       const response = await fetchWithErrorHandling(`${API_URL}/students/${studentId}`, {
         method: 'GET',
         credentials: 'include'
@@ -332,6 +368,11 @@ export const assessApi = {
   // Download Excel for assessment
   downloadExcel: async (assessmentId) => {
     try {
+      // Validate ObjectId format before sending request
+      if (!assessmentId || !/^[0-9a-fA-F]{24}$/.test(String(assessmentId))) {
+        throw new Error('Invalid assessment ID format');
+      }
+      
       console.log(`Downloading Excel for assessment: ${assessmentId}`);
       const response = await fetch(`${API_URL}/assessments/${assessmentId}/excel`, {
         method: 'GET',
@@ -358,7 +399,7 @@ export const assessApi = {
         // Get filename from Content-Disposition header or use default
         const contentDisposition = response.headers.get('content-disposition');
         const filename = contentDisposition && contentDisposition.includes('filename=') 
-          ? contentDisposition.split('filename=')[1].replace(/"/g, '')
+          ? contentDisposition.split('filename=')[1].replace(/\"/g, '')
           : `assessment_${assessmentId}.xlsx`;
         
         a.href = url;

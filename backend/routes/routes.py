@@ -391,7 +391,6 @@ def upload_csv():
                 "results": results,
                 "assessment": {
                     "id": str(new_assessment.id),
-                    "numeric_id": new_assessment.numeric_id,
                     "name": new_assessment.name,
                     "date": new_assessment.date.isoformat() if new_assessment.date else None,
                     "created_at": new_assessment.created_at.isoformat()
@@ -572,7 +571,6 @@ def download_excel(assessment_id):
         print(f"Excel download requested for assessment ID: {assessment_id}")
         
         # Validate ObjectId format
-        from bson.objectid import ObjectId
         if not ObjectId.is_valid(assessment_id):
             print(f"Invalid ObjectId format: {assessment_id}")
             return jsonify({"error": f"'{assessment_id}' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string"}), 400
@@ -611,3 +609,38 @@ def download_excel(assessment_id):
     except Exception as e:
         print(f"Error creating Excel file: {str(e)}")
         return jsonify({"error": "Failed to create Excel file"}), 500
+
+@routes_blueprint.route("/assessments/<assessment_id>", methods=["DELETE", "OPTIONS"])
+@cors_decorator()
+def delete_assessment(assessment_id):
+    """Delete an assessment by ID"""
+    if request.method == "OPTIONS":
+        response = current_app.make_default_options_response()
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Origin,X-Requested-With,Accept')
+        response.headers.add('Access-Control-Allow-Methods', 'DELETE')
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
+    try:
+        print(f"Delete request for assessment ID: {assessment_id}")
+        # Validate ObjectId format
+        if not ObjectId.is_valid(assessment_id):
+            print(f"Invalid ObjectId format: {assessment_id}")
+            return jsonify({"error": f"'{assessment_id}' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string"}), 400
+        
+        # Find the assessment
+        assessment = Assessment.objects(id=assessment_id).first()
+        if not assessment:
+            print(f"Assessment not found: {assessment_id}")
+            return jsonify({"error": "Assessment not found"}), 404
+        
+        # Delete related student assessments first
+        StudentAssessment.objects(assessment=assessment).delete()
+        
+        # Delete the assessment
+        assessment.delete()
+        print(f"Assessment {assessment_id} deleted successfully")
+        return jsonify({"success": True, "message": "Assessment deleted successfully"})
+    except Exception as e:
+        print(f"Error deleting assessment: {str(e)}")
+        return jsonify({"error": "Failed to delete assessment", "message": str(e)}), 500

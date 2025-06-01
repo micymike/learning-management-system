@@ -136,33 +136,7 @@ const Dashboard = ({ activeView = "dashboard", onNewAssessment, onViewAssessment
   };
 
   // Mock function to add a sample assessment (for testing)
-  const addSampleAssessment = () => {
-    const newAssessment = {
-      id: Date.now().toString(),
-      name: `Assessment ${assessments.length + 1}`,
-      createdAt: new Date().toISOString(),
-      status: 'Completed',
-      rubric: "Code compiles and runs without errors\nCode follows best practices (naming, structure, comments)\nFunctionality matches assignment requirements\nCode is efficient and readable\nProper use of version control (commits, messages)",
-      results: [
-        { 
-          name: 'Adrian',
-          github: 'https://github.com/saintAdrian7/Group-5-Project',
-          group: 'Group 5',
-          score: 85,
-          report: "### Assessment Results\n\n- Code quality: 4/5\n- Documentation: 3/5\n- Version control: 4/5\n- Features: 5/5\n- Testing: 3/5\n\n**Overall Score:** 85%"
-        },
-        {
-          name: 'Jonathan',
-          github: 'https://github.com/Vaniah1/Blog',
-          group: 'Group 3',
-          score: 78,
-          report: "### Assessment Results\n\n- Code quality: 3/5\n- Documentation: 4/5\n- Version control: 3/5\n- Features: 4/5\n- Testing: 3/5\n\n**Overall Score:** 78%"
-        }
-      ]
-    };
-    
-    setAssessments(prevAssessments => [...prevAssessments, newAssessment]);
-  };
+
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -194,12 +168,7 @@ const Dashboard = ({ activeView = "dashboard", onNewAssessment, onViewAssessment
               New Assessment
             </button>
             {/* Add a sample assessment button for testing */}
-            <button
-              onClick={addSampleAssessment}
-              className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md"
-            >
-              Add Sample
-            </button>
+            
           </div>
         </div>
 
@@ -410,10 +379,29 @@ const Dashboard = ({ activeView = "dashboard", onNewAssessment, onViewAssessment
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-500">{new Date(assessment.createdAt || Date.now()).toLocaleDateString()}</div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-6 py-4 whitespace-nowrap flex items-center gap-2">
                             <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
                               {assessment.status || 'Completed'}
                             </span>
+                            <button
+                              className="ml-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs"
+                              title="Delete assessment"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (window.confirm("Are you sure you want to delete this assessment? This action cannot be undone.")) {
+                                  try {
+                                    const idToDelete = assessment._id || assessment.id;
+                                    await assessApi.deleteAssessment(idToDelete);
+                                    // Remove from state
+                                    setAssessments(prev => prev.filter(a => (a._id || a.id) !== idToDelete));
+                                  } catch (err) {
+                                    alert("Failed to delete assessment: " + (err.message || err));
+                                  }
+                                }
+                              }}
+                            >
+                              Delete
+                            </button>
                           </td>
                         </tr>
                       ))}
