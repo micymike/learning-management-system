@@ -6,6 +6,9 @@ from routes.routes import routes_blueprint
 from models import Assessment
 import os
 from mongoengine import connect
+from mongoengine.errors import ValidationError, InvalidDocumentError
+from bson.objectid import ObjectId
+from bson.errors import InvalidId
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -67,6 +70,15 @@ app.register_blueprint(routes_blueprint)
 def get_assessment(assessment_id):
     try:
         print(f"Fetching assessment with ID: {assessment_id}")
+        
+        # Validate ObjectId format before querying
+        try:
+            if not ObjectId.is_valid(assessment_id):
+                print(f"Invalid ObjectId format: {assessment_id}")
+                return jsonify({'error': f"'{assessment_id}' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string"}), 400
+        except InvalidId:
+            return jsonify({'error': f"'{assessment_id}' is not a valid ObjectId"}), 400
+            
         assessment = Assessment.objects(id=assessment_id).first()
         
         if not assessment:
@@ -79,6 +91,9 @@ def get_assessment(assessment_id):
         
         print(f"Returning assessment: {assessment.name}")
         return jsonify(assessment_dict)
+    except ValidationError as e:
+        print(f"Validation error: {str(e)}")
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
         print(f"Error fetching assessment: {str(e)}")
         return jsonify({'error': str(e)}), 500

@@ -16,6 +16,8 @@ from rubric_handler import upload_rubric_file, calculate_percentage, is_passing_
 import openai
 from dotenv import load_dotenv
 from models import Assessment, Student, StudentAssessment
+from bson.objectid import ObjectId
+from bson.errors import InvalidId
 
 load_dotenv()
 
@@ -487,6 +489,12 @@ def get_student(student_id):
         
     try:
         print(f"Fetching student with ID: {student_id}")
+        
+        # Validate ObjectId format
+        if not ObjectId.is_valid(student_id):
+            print(f"Invalid ObjectId format: {student_id}")
+            return jsonify({'error': f"'{student_id}' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string"}), 400
+            
         student = Student.objects(id=student_id).first()
         
         if not student:
@@ -540,9 +548,10 @@ def download_excel(assessment_id):
         print(f"Excel download requested for assessment ID: {assessment_id}")
         
         # Validate ObjectId format
-        if len(assessment_id) != 24:
+        from bson.objectid import ObjectId
+        if not ObjectId.is_valid(assessment_id):
             print(f"Invalid ObjectId format: {assessment_id}")
-            return jsonify({"error": f"Invalid assessment ID format: {assessment_id}"}), 400
+            return jsonify({"error": f"'{assessment_id}' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string"}), 400
             
         # Get assessment by ID
         assessment = Assessment.objects(id=assessment_id).first()
