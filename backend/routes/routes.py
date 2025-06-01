@@ -13,6 +13,33 @@ from AI_assessor import assess_code
 from repo_analyzer import analyze_github_repo
 from csv_analyzer import process_csv, generate_scores_excel
 from rubric_handler import upload_rubric_file, calculate_percentage, is_passing_grade
+
+# Define allowed origins for CORS
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://codeanalyzer-bc.onrender.com",
+    "https://directed-codeanalyzer.onrender.com",
+    "https://learning-management-system-xulh.onrender.com"
+]
+
+# Helper function to create a cross_origin decorator with all allowed origins
+def cors_decorator():
+    return cross_origin(origins=ALLOWED_ORIGINS, supports_credentials=True)
+
+# Helper function to handle OPTIONS requests
+def handle_options_request(methods=["GET"]):
+    response = current_app.make_default_options_response()
+    origin = request.headers.get('Origin')
+    if origin in ALLOWED_ORIGINS:
+        response.headers.add('Access-Control-Allow-Origin', origin)
+    else:
+        response.headers.add('Access-Control-Allow-Origin', 'https://directed-codeanalyzer.onrender.com')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Origin,X-Requested-With,Accept')
+    response.headers.add('Access-Control-Allow-Methods', ','.join(methods))
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    response.headers.add('Access-Control-Max-Age', '3600')
+    return response
 import openai
 from dotenv import load_dotenv
 from models import Assessment, Student, StudentAssessment
@@ -25,16 +52,11 @@ load_dotenv()
 routes_blueprint = Blueprint('routes', __name__)
 
 @routes_blueprint.route("/analytics", methods=["GET", "OPTIONS"])
-@cross_origin(origins=["http://localhost:5173"], supports_credentials=True)
+@cors_decorator()
 def get_analytics():
     """Get analytics summary: total students, total assessments, average score"""
     if request.method == "OPTIONS":
-        response = current_app.make_default_options_response()
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Origin,X-Requested-With,Accept')
-        response.headers.add('Access-Control-Allow-Methods', 'GET')
-        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
+        return handle_options_request(methods=["GET"])
     try:
         total_students = Student.objects.count()
         total_assessments = Assessment.objects.count()
@@ -65,7 +87,7 @@ def get_analytics():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @routes_blueprint.route("/upload_csv", methods=["POST", "OPTIONS"])
-@cross_origin(origins=["http://localhost:5173"], supports_credentials=True)
+@cors_decorator()
 def upload_csv():
     # Handle preflight OPTIONS request
     if request.method == "OPTIONS":
@@ -410,7 +432,7 @@ def upload_csv():
         return jsonify({"error": "Internal server error", "message": str(e)}), 500
 
 @routes_blueprint.route("/assessments", methods=["GET", "OPTIONS"])
-@cross_origin(origins=["http://localhost:5173"], supports_credentials=True)
+@cors_decorator()
 def get_assessments():
     """Get all assessments"""
     if request.method == "OPTIONS":
@@ -441,7 +463,7 @@ def get_assessments():
         return jsonify({"error": str(e)}), 500
 
 @routes_blueprint.route("/students", methods=["GET", "OPTIONS"])
-@cross_origin(origins=["http://localhost:5173"], supports_credentials=True)
+@cors_decorator()
 def get_students():
     """Get all students"""
     if request.method == "OPTIONS":
@@ -477,7 +499,7 @@ def get_students():
         return jsonify({"error": str(e)}), 500
 
 @routes_blueprint.route("/students/<student_id>", methods=["GET", "OPTIONS"])
-@cross_origin(origins=["http://localhost:5173"], supports_credentials=True)
+@cors_decorator()
 def get_student(student_id):
     """Get a specific student by ID"""
     if request.method == "OPTIONS":
@@ -536,6 +558,7 @@ def get_student(student_id):
         return jsonify({'error': str(e)}), 500
 
 @routes_blueprint.route("/assessments/<assessment_id>/excel", methods=["GET", "OPTIONS"])
+@cors_decorator()
 def download_excel(assessment_id):
     if request.method == "OPTIONS":
         response = current_app.make_default_options_response()

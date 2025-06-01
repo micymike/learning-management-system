@@ -38,30 +38,48 @@ connect(host=MONGODB_URL)
 Session(app)
 
 # Configure CORS with session support
-CORS(app, supports_credentials=True, resources={
-    r"/*": {
-        "origins": [
-            "http://localhost:5173",
-            "http://localhost:3000",
-            "https://codeanalyzer-bc.onrender.com",
-            "https://directed-codeanalyzer.onrender.com"
-        ],
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "Origin", "X-Requested-With", "Accept"],
-        "expose_headers": ["Content-Type", "Content-Disposition"],
-        "supports_credentials": True
-    }
-})
+CORS(app, 
+     supports_credentials=True,
+     origins=[
+         "http://localhost:5173",
+         "http://localhost:3000",
+         "https://codeanalyzer-bc.onrender.com",
+         "https://directed-codeanalyzer.onrender.com",
+         # Add the domain of your backend as well to allow same-origin requests
+         "https://learning-management-system-xulh.onrender.com"
+     ],
+     allow_headers=["Content-Type", "Authorization", "Origin", "X-Requested-With", "Accept"],
+     expose_headers=["Content-Type", "Content-Disposition"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+)
 
 # Add OPTIONS method handler for all routes to handle CORS preflight requests
 @app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
 @app.route('/<path:path>', methods=['OPTIONS'])
 def handle_options(path):
     response = app.make_default_options_response()
-    response.headers.set('Access-Control-Allow-Origin', 'http://localhost:5173')
+    # Get the Origin header from the request
+    origin = request.headers.get('Origin')
+    # List of allowed origins
+    allowed_origins = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "https://codeanalyzer-bc.onrender.com",
+        "https://directed-codeanalyzer.onrender.com",
+        "https://learning-management-system-xulh.onrender.com"
+    ]
+    
+    # If the origin is in our list of allowed origins, set the CORS headers
+    if origin in allowed_origins:
+        response.headers.set('Access-Control-Allow-Origin', origin)
+    else:
+        # Default to the frontend domain if origin is not in the allowed list
+        response.headers.set('Access-Control-Allow-Origin', 'https://directed-codeanalyzer.onrender.com')
+    
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization,Origin,X-Requested-With,Accept')
     response.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
     response.headers.set('Access-Control-Allow-Credentials', 'true')
+    response.headers.set('Access-Control-Max-Age', '3600')  # Cache preflight response for 1 hour
     return response
 app.register_blueprint(routes_blueprint)
 
