@@ -145,7 +145,17 @@ export const assessApi = {
   // Get a specific assessment by ID from the backend
   getAssessment: async (id) => {
     try {
-      const response = await fetchWithErrorHandling(`${API_URL}/assessments/${id}`, {
+      // Validate ID format before sending to backend
+      if (!id) {
+        throw new Error('Assessment ID is required');
+      }
+      
+      // Try to convert numeric ID to string if needed
+      const assessmentId = String(id);
+      
+      console.log(`Fetching assessment with ID: ${assessmentId}`);
+      
+      const response = await fetchWithErrorHandling(`${API_URL}/assessments/${assessmentId}`, {
         method: 'GET',
         credentials: 'include'
       });
@@ -153,7 +163,11 @@ export const assessApi = {
       // The backend returns the assessment directly, not wrapped in an object
       if (response && Object.keys(response).length > 0) {
         // Check if we have a valid assessment object
-        if (response.name && response._id) {
+        if (response.name) {
+          // Ensure _id field exists
+          if (!response._id && response.id) {
+            response._id = response.id;
+          }
           return { success: true, data: response };
         }
       }
@@ -162,6 +176,17 @@ export const assessApi = {
       console.error('Invalid assessment data:', response);
       throw new Error(`Assessment with ID ${id} not found`);
     } catch (error) {
+      // Handle specific error cases
+      if (error.message && error.message.includes('ObjectId')) {
+        console.error('Invalid ObjectId format:', error);
+        // Try to recover by redirecting to assessments list
+        return { 
+          success: false, 
+          error: 'Invalid assessment ID format', 
+          redirect: true 
+        };
+      }
+      
       console.error('Error getting assessment:', error);
       throw error;
     }

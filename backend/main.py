@@ -71,16 +71,37 @@ def get_assessment(assessment_id):
     try:
         print(f"Fetching assessment with ID: {assessment_id}")
         
-        # Validate ObjectId format before querying
-        try:
-            if not ObjectId.is_valid(assessment_id):
-                print(f"Invalid ObjectId format: {assessment_id}")
-                return jsonify({'error': f"'{assessment_id}' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string"}), 400
-        except InvalidId:
-            return jsonify({'error': f"'{assessment_id}' is not a valid ObjectId"}), 400
-            
-        assessment = Assessment.objects(id=assessment_id).first()
+        # Try to find the assessment by ID first
+        assessment = None
         
+        # Check if it's a valid ObjectId
+        if ObjectId.is_valid(assessment_id):
+            assessment = Assessment.objects(id=assessment_id).first()
+        
+        # If not found by ObjectId, try to find by other fields
+        if not assessment:
+            # Try to find by timestamp or other numeric ID if the ID is numeric
+            try:
+                if assessment_id.isdigit():
+                    # Try to find assessment by timestamp or other numeric fields
+                    # This assumes you might have a field that stores a numeric ID
+                    timestamp = int(assessment_id)
+                    # Look for assessments created around this timestamp
+                    # This is just an example - adjust based on your actual data model
+                    assessments = Assessment.objects().all()
+                    for a in assessments:
+                        # Check if the assessment has a numeric identifier that matches
+                        if hasattr(a, 'numeric_id') and a.numeric_id == timestamp:
+                            assessment = a
+                            break
+                        # Or check if the name contains this number
+                        if str(timestamp) in a.name:
+                            assessment = a
+                            break
+            except (ValueError, TypeError):
+                pass
+        
+        # If still not found, return 404
         if not assessment:
             print(f"Assessment with ID {assessment_id} not found")
             return jsonify({'error': 'Assessment not found'}), 404

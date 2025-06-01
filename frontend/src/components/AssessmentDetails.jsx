@@ -24,12 +24,29 @@ const AssessmentDetails = () => {
           console.log('Assessment data received:', response.data);
           setAssessment(response.data);
           setError(null);
+        } else if (response.redirect) {
+          // Handle redirect case for invalid ID format
+          console.warn('Invalid assessment ID, redirecting to dashboard');
+          navigate('/');
+          return;
         } else {
           console.error('Invalid response format:', response);
           setError('Failed to load assessment details: Invalid response format');
         }
       } catch (err) {
         console.error('Error loading assessment:', err);
+        
+        // Check if the error is related to ObjectId validation
+        if (err.message && (
+            err.message.includes('ObjectId') || 
+            err.message.includes('not a valid') ||
+            err.message.includes('400')
+        )) {
+          console.warn('Invalid assessment ID format, redirecting to dashboard');
+          navigate('/');
+          return;
+        }
+        
         setError(`Failed to load assessment: ${err.message || 'Unknown error'}`);
       } finally {
         setLoading(false);
@@ -41,7 +58,7 @@ const AssessmentDetails = () => {
     } else {
       setError('No assessment ID provided');
     }
-  }, [id]);
+  }, [id, navigate]);
 
   const handleDownloadExcel = async () => {
     try {

@@ -15,13 +15,23 @@ class Assessment(Document):
     date = DateTimeField(default=datetime.utcnow)
     created_at = DateTimeField(default=datetime.utcnow)
     updated_at = DateTimeField(default=datetime.utcnow)
+    numeric_id = IntField()  # Optional numeric ID for easier reference
     rubric = ListField(DictField(), required=True)  # Store rubric as list of dicts
     results = ListField(DictField())  # Store assessment results
+
+    def save(self, *args, **kwargs):
+        """Override save to set numeric_id if not already set"""
+        if not self.numeric_id:
+            # Generate a numeric ID based on timestamp if not set
+            import time
+            self.numeric_id = int(time.time() * 1000)
+        return super(Assessment, self).save(*args, **kwargs)
 
     def to_dict(self):
         """Convert assessment to dictionary format"""
         return {
             'id': str(self.id),
+            'numeric_id': self.numeric_id,
             'name': self.name,
             'date': self.date.isoformat() if self.date else None,
             'created_at': self.created_at.isoformat(),

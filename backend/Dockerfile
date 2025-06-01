@@ -21,6 +21,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the application code
 COPY . .
 
+# Make the entrypoint script executable
+RUN chmod +x /app/docker-entrypoint.sh
+
 # Environment variables should be provided at runtime (e.g., with --env-file or Docker Compose)
 
 # Create a non-root user and switch to it
@@ -32,6 +35,9 @@ RUN mkdir -p /app/flask_session && chmod 755 /app/flask_session
 
 # Expose the port the app runs on
 EXPOSE 8000
+
+# Set the entrypoint script
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 # Command to run the application
 CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:8000", "main:app"]

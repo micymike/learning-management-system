@@ -369,6 +369,7 @@ def upload_csv():
                 "results": results,
                 "assessment": {
                     "id": str(new_assessment.id),
+                    "numeric_id": new_assessment.numeric_id,
                     "name": new_assessment.name,
                     "date": new_assessment.date.isoformat() if new_assessment.date else None,
                     "created_at": new_assessment.created_at.isoformat()
