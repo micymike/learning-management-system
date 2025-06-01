@@ -1,4 +1,5 @@
 flask
+flask-session
 flask-cors
 python-dotenv
 openai
