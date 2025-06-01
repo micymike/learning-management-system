@@ -21,6 +21,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the application code
 COPY . .
 
+# Copy .env file if present (for environment variables)
+COPY .env .env
+
 # Create a non-root user and switch to it
 RUN adduser -D -g '' appuser && chown -R appuser:appuser /app
 USER appuser
