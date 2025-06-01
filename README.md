@@ -1,147 +1,368 @@
-# Learning Management System with RAG-based Assessment
+Product Requirements Document
+Product Name: AI-Powered Student Repo Grader
+ Version: 1.0
+ Prepared by: Kidus Elias
+ Date: April 23, 2025
 
-This system uses Retrieval-Augmented Generation (RAG) to assess student code submissions based on rubrics.
+1. Overview
+The AI-Powered Student Repo Grader is a web-based application that automates the grading of coding assignments submitted by students via GitHub repositories. The tool uses a grading rubric provided by the instructor and analyzes student code submissions to output structured grading reports. It flags inaccessible repositories, evaluates code against a defined rubric, estimates the percentage of AI-generated code, and outputs a detailed grading spreadsheet.
 
-## Setup
+2. Goals and Success Criteria
+2.1 Goals
+Automate the evaluation of student code submissions from GitHub.
 
-1. Clone the repository
-2. Create a virtual environment: `python -m venv venv`
-3. Activate the virtual environment:
-   - Windows: `venv\\Scripts\\activate`
-   - Unix/MacOS: `source venv/bin/activate`
-4. Install dependencies: `pip install -r backend/requirements.txt`
-5. Copy `.env.example` to `.env` and fill in your API keys and configuration
-6. Set up Pinecone:
-   - Create a Pinecone account at https://www.pinecone.io/
-   - Create an index named "code-assessment" with dimension 1536 and metric "cosine"
-   - Add your Pinecone API key and environment to `.env`
-7. Set up Google Drive API (for bulk training):
-   - Create a project in Google Cloud Console
-   - Enable the Google Drive API
-   - Create a service account and download the credentials JSON file
-   - Share your Google Drive folders with the service account email
-   - Add the path to the credentials file in `.env`
 
-## Training the RAG System
+Ensure consistency and objectivity in grading through rubric-based assessment.
 
-### Option 1: Using the Training Script
 
-The easiest way to train the RAG system is using the provided script:
+Detect and flag inaccessible or invalid repository links.
 
-```bash
-./train.sh training_scripts.csv
-```
 
-This will:
-1. Process the CSV file containing links to rubrics and example assessments
-2. Download the content and extract training data
-3. Add the rubrics and examples to the vector database
+Identify and report unusual patterns or potential plagiarism (including AI-generated code).
 
-### Option 2: Bulk Training from Google Drive
 
-1. Organize your rubrics and examples in Google Drive folders
-2. Add the folder IDs to `.env`
-3. Run the training script: `python backend/rag_trainer.py`
+2.2 Success Criteria
+Accurate and interpretable grading output for each student repository.
 
-### Option 3: Manual Training via API
 
-Send a POST request to `/rag/train/manual` with JSON data:
+Clear, downloadable spreadsheet of all evaluations.
 
-```json
+
+Usability for instructors with minimal technical intervention.
+
+
+Process completion for at least 95% of valid repositories within 10 minutes for a batch of 30 students.
+
+
+
+3. Core Features
+3.1 CSV Upload Interface
+Users can upload a CSV file containing two columns:
+
+
+Student Name
+
+
+GitHub Repository URL
+
+
+CSV should support UTF-8 encoding.
+
+
+File size limit: 5MB.
+
+
+3.2 Rubric Upload Interface
+Users upload a structured assessment rubric.
+
+
+Supported formats:
+
+
+JSON (preferred for structured parsing)
+
+
+Markdown or PDF (optional, requires AI parsing)
+
+
+Rubric must define:
+
+
+Criterion name
+
+
+Maximum score per criterion
+
+
+Evaluation description or guidelines per criterion
+
+
+3.3 Repository Crawler
+Automatically clones each GitHub repository.
+
+
+Uses GitHub’s API or git CLI to validate accessibility.
+
+
+If inaccessible (e.g., private or non-existent), log an error with:
+
+
+Error type (404, permission denied, etc.)
+
+
+Affected student’s name and repository URL
+
+
+Repos are analyzed for structure, file count, commit history, and code patterns.
+
+
+3.4 AI Grading Engine
+Parses student code and evaluates against rubric.
+
+
+Scores each rubric criterion based on code analysis, structure, logic, and documentation.
+
+
+Outputs:
+
+
+Score per criterion
+
+
+Short justification for each score
+
+
+Total score out of maximum
+
+
+Summary note on the submission’s strengths, weaknesses, and any red flags
+
+
+3.5 AI-Generated Code Estimation
+Estimates what percentage of code was likely written by AI tools (e.g., ChatGPT, Copilot).
+
+
+Techniques may include:
+
+
+Semantic similarity to known AI-generated patterns
+
+
+Commit message patterns
+
+
+Authorship anomalies
+
+
+Integration of external models (e.g., GPTZero API)
+
+
+3.6 Outlier Detection
+Flags submissions with:
+
+
+Unusually high or low scores
+
+
+Unusual patterns (e.g., no commit history, all files created within minutes)
+
+
+Sudden spikes in performance relative to past submissions
+
+
+3.7 Report Generation
+Outputs a downloadable spreadsheet (CSV and XLSX formats) with the following columns:
+
+
+Student Name
+
+
+Repository URL
+
+
+Criteria 1 Score
+
+
+Criteria 2 Score
+
+
+... (one column per rubric criterion)
+
+
+Total Score
+
+
+AI Code Estimate (%)
+
+
+Evaluation Note
+
+
+Issues or Flags
+
+
+
+4. User Stories
+4.1 CSV Upload
+As an instructor, I want to upload a CSV of student names and GitHub URLs so that I can evaluate all submissions in bulk.
+4.2 Rubric-Based Grading
+As an instructor, I want to upload a rubric that defines how student projects should be graded so that grading is consistent and transparent.
+4.3 Code Evaluation
+As the system, I want to automatically analyze each GitHub repository so that instructors do not need to grade manually.
+4.4 Inaccessible Repo Handling
+As the system, I want to flag repositories that are inaccessible so instructors can follow up with affected students.
+4.5 AI Authorship Estimation
+As an instructor, I want to estimate how much of the code was generated by AI so I can better evaluate the originality of submissions.
+4.6 Reporting
+As an instructor, I want to download a detailed spreadsheet that includes scores, AI authorship estimates, and notes so that I can review or share results efficiently.
+
+5. Inputs and Outputs
+5.1 Inputs
+CSV File:
+
+
+Required columns: Student Name, GitHub URL
+
+
+Rubric File:
+
+
+JSON with structure:
+
+ json
+CopyEdit
 {
-  "rubric": "Your rubric text here...",
-  "rubric_id": "optional_rubric_id",
-  "example": {
-    "code": "Your example code here...",
-    "scores": {
-      "Criterion 1": {
-        "mark": "10/12",
-        "justification": "Explanation for the score"
-      },
-      "Criterion 2": {
-        "mark": "8/12",
-        "justification": "Explanation for the score"
-      }
+  "criteria": [
+    {
+      "name": "Code Structure",
+      "max_points": 20,
+      "description": "Evaluate the organization and modularity of the code"
     },
-    "id": "optional_example_id"
-  }
+    {
+      "name": "Functionality",
+      "max_points": 30,
+      "description": "Check if the project runs and meets the specifications"
+    }
+  ]
 }
-```
 
-## Using the Assessment System
 
-### Traditional vs RAG-based Assessment
+5.2 Outputs
+.csv or .xlsx file containing:
 
-The system supports both traditional LLM-based assessment and RAG-based assessment:
 
-1. **Traditional Assessment**: Uses OpenAI's GPT models directly with the rubric
-2. **RAG-based Assessment**: Enhances the assessment by retrieving similar examples and rubrics
+Student Name
 
-You can choose which method to use:
 
-- Set `USE_RAG=true` in your `.env` file to use RAG-based assessment by default
-- Use the `/api/assess` endpoint with `use_rag: true` in your JSON payload
-- Use the `/api/compare-assessment` endpoint to get results from both methods
+GitHub URL
 
-### API Endpoints
 
-#### Assess Code
+Criteria Scores
 
-```
-POST /api/assess
-```
 
-Request body:
-```json
-{
-  "code": "Your code to assess",
-  "rubric": "Your rubric text",
-  "use_rag": true
-}
-```
+Total Score
 
-#### Compare Assessment Methods
 
-```
-POST /api/compare-assessment
-```
+AI-written Code Estimate
 
-Request body:
-```json
-{
-  "code": "Your code to assess",
-  "rubric": "Your rubric text"
-}
-```
 
-#### RAG-specific Endpoints
+Summary Note
 
-```
-POST /rag/assess
-```
-- Supports both JSON and form data
-- Can process individual code or GitHub repositories
 
-```
-POST /rag/assess/excel
-```
-- Returns an Excel file with formatted assessment results
+Flags or Issues
 
-## File Structure
 
-- `backend/AI_assessor.py`: Traditional assessment system
-- `backend/rag_assessor.py`: RAG-based assessment system
-- `backend/rag_trainer.py`: Script for training the RAG system
-- `backend/train_from_csv.py`: Script for training from CSV data
-- `backend/routes/api_routes.py`: Combined API routes
-- `backend/routes/rag_routes.py`: RAG-specific API routes
-- `train.sh`: Shell script for easy training
 
-## Troubleshooting
+6. Non-Functional Requirements
+Web application should support batch uploads (up to 100 students).
 
-If you encounter issues with the RAG system:
 
-1. Check that your vector database (Pinecone or ChromaDB) is properly set up
-2. Ensure you have trained the system with relevant examples
-3. Verify your OpenAI API key is valid and has sufficient credits
-4. If RAG assessment fails, the system will fall back to traditional assessment
+Asynchronous processing with email or notification once grading is complete.
+
+
+Use secure temporary storage for uploaded documents and repository clones.
+
+
+No student data is stored permanently unless explicitly enabled by the user.
+
+
+Application response time should not exceed 3 seconds per page interaction.
+
+
+
+7. Edge Cases and Error Handling
+Scenario
+Handling Strategy
+The GitHub repo is private
+Log and flag in the output with appropriate message
+Rubric format is invalid
+Display error with required formatting example
+Repo contains no code
+Assign zero, flag as 'empty repository'
+Long-running repo analysis
+Use background jobs with timeout fallback
+Mixed languages in project
+Focus on primary language inferred from files
+
+
+8. Future Enhancements (Optional)
+Plagiarism detection between student submissions
+
+
+GitHub OAuth integration for repo access
+
+
+UI for rubric creation and editing
+
+
+Visualization of class-wide performance distribution
+
+
+
+
+9. Tech stack to be used
+👨‍💻 Backend: Python + FastAPI
+FastAPI – Super fast, async-ready, perfect for building a RESTful backend in record time.
+
+
+GitPython – To clone and interact with student GitHub repositories.
+
+
+OpenAI API / Transformers (HuggingFace) – For detecting AI-generated code (e.g., using GPTZero, CodeBERT, or similar models).
+
+
+Pydantic – For data validation and handling grading rubrics cleanly.
+
+
+Pandas – For processing grading data and generating CSV or Excel reports.
+
+
+🧠 AI Code Analysis:
+Use a pretrained model or heuristic-based detection for AI-generated code (can explore GPT detectors like detectGPT, GPTZero, or custom fine-tuned classifiers).
+
+
+Compare code quality, structure, docstrings, etc., with the rubric.
+
+
+🗂️ Rubric Handling:
+Store the rubric in JSON/YAML format (flexible, easy to edit).
+
+
+Parse and match against code metrics (e.g., function naming, comments, modularity, test cases).
+
+
+📂 GitHub Integration:
+GitHub API (via PyGitHub) – To check repo access, contributors, pull files, etc.
+
+
+Handle token auth for accessing private repos.
+
+
+📈 Report Generation:
+Output structured reports as:
+
+
+CSV or Excel files via pandas
+
+
+PDF (optional) via reportlab or WeasyPrint
+
+
+🌐 Frontend (Optional MVP):
+If you want a frontend:
+React + Tailwind CSS for a sleek dashboard.
+
+
+If in a rush, keep it minimal or even use Jinja2 + FastAPI templating.
+
+
+🧪 Testing & Linting:
+pytest, black, flake8 – for clean and testable code.
+
+
+☁️ Deployment:
+Render / Railway / Fly.io – Easiest Python backend hosting.
+
+
+CI/CD: GitHub Actions for automating tests and deployments.
+
