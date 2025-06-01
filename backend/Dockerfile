@@ -22,7 +22,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create a non-root user and switch to it
-RUN useradd -m appuser && chown -R appuser:appuser /app
+RUN adduser -D -g '' appuser && chown -R appuser:appuser /app
 USER appuser
 
 # Create necessary directories for Flask session
@@ -32,4 +32,4 @@ RUN mkdir -p /app/flask_session && chmod 755 /app/flask_session
 EXPOSE 8000
 
 # Command to run the application
-CMD ["python", "main.py"]
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:8000", "main:app"]
