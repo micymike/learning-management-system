@@ -21,8 +21,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the application code
 COPY . .
 
-# Copy .env file if present (for environment variables)
-COPY .env .env
+# Environment variables should be provided at runtime (e.g., with --env-file or Docker Compose)
 
 # Create a non-root user and switch to it
 RUN adduser -D -g '' appuser && chown -R appuser:appuser /app
