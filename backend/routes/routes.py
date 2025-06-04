@@ -123,29 +123,31 @@ def upload_csv():
         file_keys = list(request.files.keys())
         print(f"Found {len(file_keys)} files with keys: {file_keys}")
         
-        # Try to identify CSV and rubric files by name or content type
-        csv_file = None
+        # Try to identify student list and rubric files by name or content type
+        student_list_file = None
         rubric_file = None
-        
+
         # First try to get files by expected keys
         if 'file' in request.files:
-            csv_file = request.files.get('file')
-            print(f"Found CSV file with key 'file': {csv_file.filename}")
-        
+            student_list_file = request.files.get('file')
+            print(f"Found student list file with key 'file': {student_list_file.filename}")
+
         if 'rubric' in request.files:
             rubric_file = request.files.get('rubric')
             print(f"Found rubric file with key 'rubric': {rubric_file.filename}")
-            
+
         # If not found, try to identify by content type or filename
-        if not csv_file or not rubric_file:
+        if not student_list_file or not rubric_file:
             for key, file in request.files.items():
-                if not csv_file and (
-                    'csv' in file.filename.lower() or 
+                if not student_list_file and (
+                    'csv' in file.filename.lower() or
+                    'xlsx' in file.filename.lower() or
+                    'xls' in file.filename.lower() or
                     'text/csv' in file.content_type.lower() or
                     'spreadsheet' in file.content_type.lower()
                 ):
-                    csv_file = file
-                    print(f"Identified CSV file by content: {key} -> {file.filename}")
+                    student_list_file = file
+                    print(f"Identified student list file by content: {key} -> {file.filename}")
                 elif not rubric_file and (
                     'rubric' in file.filename.lower() or
                     'excel' in file.content_type.lower() or
@@ -154,51 +156,51 @@ def upload_csv():
                 ):
                     rubric_file = file
                     print(f"Identified rubric file by content: {key} -> {file.filename}")
-        
+
         # If still not found and we have exactly two files, use them in order
-        if (not csv_file or not rubric_file) and len(file_keys) == 2:
-            if not csv_file:
-                csv_file = request.files.get(file_keys[0])
-                print(f"Using first file as CSV: {file_keys[0]} -> {csv_file.filename}")
+        if (not student_list_file or not rubric_file) and len(file_keys) == 2:
+            if not student_list_file:
+                student_list_file = request.files.get(file_keys[0])
+                print(f"Using first file as student list: {file_keys[0]} -> {student_list_file.filename}")
             if not rubric_file:
                 rubric_file = request.files.get(file_keys[1])
                 print(f"Using second file as rubric: {file_keys[1]} -> {rubric_file.filename}")
-        
+
         # Detailed logging for debugging
-        if csv_file:
-            print(f"CSV file received: {csv_file.filename}, type: {csv_file.content_type}")
+        if student_list_file:
+            print(f"Student list file received: {student_list_file.filename}, type: {student_list_file.content_type}")
         else:
-            print("No CSV file found in request")
-            
+            print("No student list file found in request")
+
         if rubric_file:
             print(f"Rubric file received: {rubric_file.filename}, type: {rubric_file.content_type}")
         else:
             print("No rubric file found in request")
-            
+
         # Check for required files
-        if not csv_file or not rubric_file:
-            error_msg = f"Must provide both CSV and rubric files. Got: CSV={bool(csv_file)}, Rubric={bool(rubric_file)}"
+        if not student_list_file or not rubric_file:
+            error_msg = f"Must provide both student list (CSV or Excel) and rubric files. Got: StudentList={bool(student_list_file)}, Rubric={bool(rubric_file)}"
             print("Error:", error_msg)
             print("Available files:", list(request.files.keys()))
-            
+
             # Detailed debug information
             print("Request form data:", dict(request.form))
             print("Request content type:", request.content_type)
             print("Request mimetype:", request.mimetype)
             print("Request is multipart:", request.is_multipart)
-            
+
             # Check if we have any files at all
             file_keys = list(request.files.keys())
             if len(file_keys) > 0:
                 print(f"Found {len(file_keys)} files but not identified as 'file' and 'rubric'")
                 print(f"Actual file keys: {file_keys}")
-                
+
                 # Try to use the available files
                 if len(file_keys) >= 2:
-                    print("Attempting to use the first two files as CSV and rubric")
-                    if not csv_file:
-                        csv_file = request.files.get(file_keys[0])
-                        print(f"Using {file_keys[0]} as CSV file: {csv_file.filename}")
+                    print("Attempting to use the first two files as student list and rubric")
+                    if not student_list_file:
+                        student_list_file = request.files.get(file_keys[0])
+                        print(f"Using {file_keys[0]} as student list file: {student_list_file.filename}")
                     if not rubric_file:
                         rubric_file = request.files.get(file_keys[1])
                         print(f"Using {file_keys[1]} as rubric file: {rubric_file.filename}")
@@ -207,34 +209,34 @@ def upload_csv():
                     # If we only have one file, try to determine which one it is
                     file = request.files.get(file_keys[0])
                     print(f"Only one file found: {file_keys[0]} -> {file.filename}")
-                    
+
                     # No default rubric - both files are required
                     if not rubric_file:
                         return jsonify({
-                            "error": "Rubric file is required. No default rubric will be used.", 
+                            "error": "Rubric file is required. No default rubric will be used.",
                             "available_files": list(request.files.keys()),
                             "form_data": dict(request.form)
                         }), 400
-                        
-                        # Assume the file we have is the CSV
-                        csv_file = file
-                        print(f"Using {file_keys[0]} as CSV file but rubric is required")
-                    elif not csv_file:
-                        # If we have a rubric but no CSV, we can't proceed
+
+                        # Assume the file we have is the student list
+                        student_list_file = file
+                        print(f"Using {file_keys[0]} as student list file but rubric is required")
+                    elif not student_list_file:
+                        # If we have a rubric but no student list, we can't proceed
                         return jsonify({
-                            "error": "CSV file is required", 
+                            "error": "Student list file (CSV or Excel) is required",
                             "available_files": list(request.files.keys()),
                             "form_data": dict(request.form)
                         }), 400
                 else:
                     return jsonify({
-                        "error": error_msg, 
+                        "error": error_msg,
                         "available_files": list(request.files.keys()),
                         "form_data": dict(request.form)
                     }), 400
             else:
                 return jsonify({
-                    "error": error_msg, 
+                    "error": error_msg,
                     "available_files": list(request.files.keys()),
                     "form_data": dict(request.form)
                 }), 400
@@ -285,17 +287,17 @@ def upload_csv():
         
         # Process student data
         try:
-            print("\nProcessing CSV file...")
-            students = process_csv(csv_file)
+            print("\nProcessing student list file (CSV or Excel)...")
+            students = process_csv(student_list_file)
             if not students:
-                error_msg = "No student data found in CSV"
+                error_msg = "No student data found in student list file (CSV or Excel)"
                 print("Error:", error_msg)
                 return jsonify({"error": error_msg}), 400
-                
+
             print(f"\nFound {len(students)} students")
-                
+
         except Exception as e:
-            error_msg = f"Error processing CSV: {str(e)}"
+            error_msg = f"Error processing student list file: {str(e)}"
             print("Error:", error_msg)
             return jsonify({"error": error_msg}), 400
         

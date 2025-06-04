@@ -59,7 +59,14 @@ def process_csv(file_storage):
     """
     Accepts a Flask file storage object, parses CSV, Excel, or TXT, and returns a list of dicts with relevant student information.
     Supports multiple formats by detecting the file extension.
+    Handles real-world formats with 'First Name', 'Last Name', and long GitHub repo URL columns.
     """
+    import re
+
+    def normalize_header(header):
+        # Remove punctuation, lower case, and extra spaces
+        return re.sub(r'[\W_]+', '', header).lower()
+
     filename = file_storage.filename.lower()
     results = []
     print(f"Processing file: {filename}")  # Debug log
@@ -71,57 +78,145 @@ def process_csv(file_storage):
             file_storage.seek(0)
             reader = csv.reader(StringIO(content))
             headers = next(reader, [])
-            validate_csv_headers(headers)
+            # Do not validate headers yet, allow flexible formats
 
             file_storage.seek(0)
             reader = csv.reader(StringIO(content))
             headers = next(reader, [])
-            headers_lower = [h.lower() for h in headers]
+            headers_norm = [normalize_header(h) for h in headers]
+
+            # Find relevant columns
+            first_name_idx = None
+            last_name_idx = None
+            name_idx = None
+            repo_url_idx = None
+
+            for i, h in enumerate(headers):
+                h_norm = normalize_header(h)
+                if h_norm in ["firstname"]:
+                    first_name_idx = i
+                elif h_norm in ["lastname"]:
+                    last_name_idx = i
+                elif h_norm in ["name"]:
+                    name_idx = i
+                # Look for github repo url column (robust)
+                if ("github" in h_norm and "repo" in h_norm and "url" in h_norm) or (
+                    "github" in h_norm and "repository" in h_norm
+                ):
+                    repo_url_idx = i
+                # Also allow "repo_url"
+                if h_norm == "repourl":
+                    repo_url_idx = i
+
             for row in reader:
                 if not any(row):
                     continue
-                row_dict = {headers[i]: value for i, value in enumerate(row) if i < len(headers)}
                 student_data = {}
-                for header, value in row_dict.items():
-                    if 'name' in header.lower():
-                        student_data['name'] = value.strip()
-                    elif any(x in header.lower() for x in ['github', 'repo']) and 'url' in header.lower():
-                        student_data['repo_url'] = value.strip()
-                    elif 'group' in header.lower():
-                        student_data['group'] = value.strip()
-                    elif 'project' in header.lower():
-                        student_data['project_name'] = value.strip()
-                    elif 'deployed' in header.lower() and 'url' in header.lower():
-                        student_data['deployed_url'] = value.strip()
-                if 'name' in student_data and 'repo_url' in student_data:
+                # Name logic
+                if first_name_idx is not None and last_name_idx is not None:
+                    first = row[first_name_idx].strip() if first_name_idx < len(row) else ""
+                    last = row[last_name_idx].strip() if last_name_idx < len(row) else ""
+                    student_data['name'] = f"{first} {last}".strip()
+                elif name_idx is not None:
+                    student_data['name'] = row[name_idx].strip() if name_idx < len(row) else ""
+                # Repo URL logic
+                if repo_url_idx is not None:
+                    student_data['repo_url'] = row[repo_url_idx].strip() if repo_url_idx < len(row) else ""
+                # Fallback: try to find repo url in any column by header
+                if 'repo_url' not in student_data or not student_data['repo_url']:
+                    for i, h in enumerate(headers):
+                        h_norm = normalize_header(h)
+                        if ("github" in h_norm and "repo" in h_norm and "url" in h_norm) or (
+                            "github" in h_norm and "repository" in h_norm
+                        ):
+                            student_data['repo_url'] = row[i].strip() if i < len(row) else ""
+                            break
+                # Final fallback: scan all columns for a value containing 'github.com'
+                if 'repo_url' not in student_data or not student_data['repo_url']:
+                    for value in row:
+                        if isinstance(value, str) and "github.com" in value:
+                            student_data['repo_url'] = value.strip()
+                            break
+                # Only add if both fields present and repo_url looks like a GitHub URL
+                if (
+                    'name' in student_data
+                    and 'repo_url' in student_data
+                    and student_data['repo_url']
+                    and "github.com" in student_data['repo_url']
+                ):
                     results.append(student_data)
             if not results:
-                raise ValueError('No student data found in CSV with required columns (name, repo_url)')
+                raise ValueError('No student data found in CSV with required columns (First Name + Last Name, or Name, and GitHub Repo URL)')
             return results
 
         elif filename.endswith(('.xlsx', '.xls')):
             df = pd.read_excel(file_storage)
             headers = df.columns.tolist()
-            validate_csv_headers(headers)
+            # Do not validate headers yet, allow flexible formats
+            headers_norm = [normalize_header(h) for h in headers]
+
+            # Find relevant columns
+            first_name_col = None
+            last_name_col = None
+            name_col = None
+            repo_url_col = None
+
+            for h in headers:
+                h_norm = normalize_header(h)
+                if h_norm in ["firstname"]:
+                    first_name_col = h
+                elif h_norm in ["lastname"]:
+                    last_name_col = h
+                elif h_norm in ["name"]:
+                    name_col = h
+                if ("github" in h_norm and "repo" in h_norm and "url" in h_norm) or (
+                    "github" in h_norm and "repository" in h_norm
+                ):
+                    repo_url_col = h
+                if h_norm == "repourl":
+                    repo_url_col = h
+
             for _, row in df.iterrows():
                 student_data = {}
-                for col in df.columns:
-                    col_lower = col.lower()
-                    value = str(row[col]) if not pd.isnull(row[col]) else ''
-                    if 'name' in col_lower:
-                        student_data['name'] = value.strip()
-                    elif 'github' in col_lower and 'url' in col_lower:
-                        student_data['repo_url'] = value.strip()
-                    elif 'group' in col_lower:
-                        student_data['group'] = value.strip()
-                    elif 'project' in header.lower():
-                        student_data['project_name'] = value.strip()
-                    elif 'deployed' in header.lower() and 'url' in header.lower():
-                        student_data['deployed_url'] = value.strip()
-                if 'name' in student_data and 'repo_url' in student_data:
+                # Name logic
+                if first_name_col and last_name_col:
+                    first = str(row[first_name_col]).strip() if not pd.isnull(row[first_name_col]) else ""
+                    last = str(row[last_name_col]).strip() if not pd.isnull(row[last_name_col]) else ""
+                    student_data['name'] = f"{first} {last}".strip()
+                elif name_col:
+                    value = row[name_col]
+                    student_data['name'] = str(value).strip() if not pd.isnull(value) else ""
+                # Repo URL logic
+                if repo_url_col:
+                    value = row[repo_url_col]
+                    student_data['repo_url'] = str(value).strip() if not pd.isnull(value) else ""
+                # Fallback: try to find repo url in any column by header
+                if 'repo_url' not in student_data or not student_data['repo_url']:
+                    for h in headers:
+                        h_norm = normalize_header(h)
+                        if ("github" in h_norm and "repo" in h_norm and "url" in h_norm) or (
+                            "github" in h_norm and "repository" in h_norm
+                        ):
+                            value = row[h]
+                            student_data['repo_url'] = str(value).strip() if not pd.isnull(value) else ""
+                            break
+                # Final fallback: scan all columns for a value containing 'github.com'
+                if 'repo_url' not in student_data or not student_data['repo_url']:
+                    for h in headers:
+                        value = row[h]
+                        if isinstance(value, str) and "github.com" in value:
+                            student_data['repo_url'] = value.strip()
+                            break
+                # Only add if both fields present and repo_url looks like a GitHub URL
+                if (
+                    'name' in student_data
+                    and 'repo_url' in student_data
+                    and student_data['repo_url']
+                    and "github.com" in student_data['repo_url']
+                ):
                     results.append(student_data)
             if not results:
-                raise ValueError('No student data found in Excel with required columns (name, repo_url)')
+                raise ValueError('No student data found in Excel or CSV with required columns (First Name + Last Name, or Name, and GitHub Repo URL)')
             return results
 
         elif filename.endswith('.txt'):
@@ -267,11 +362,9 @@ def generate_scores_excel(scores):
             # Add overall summary
             summary = scores_obj.get("summary", "")
             if not summary:
-                # Extract summary from raw_assessment if available
-                if raw_assessment and "Summary of Scores:" in raw_assessment:
-                    summary_start = raw_assessment.find("Summary of Scores:")
-                    summary = raw_assessment[summary_start:].strip()
-            
+                # Use raw_assessment as fallback if summary is missing
+                if raw_assessment:
+                    summary = str(raw_assessment).strip()
             if summary:
                 # Limit summary length for better display
                 if len(summary) > 400:

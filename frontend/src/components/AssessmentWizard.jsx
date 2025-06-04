@@ -11,7 +11,9 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [rubric, setRubric] = useState("");
   const [rubricFile, setRubricFile] = useState(null);
+  const [rubricLink, setRubricLink] = useState(""); // New: for pasted rubric link
   const [csvFile, setCsvFile] = useState(null);
+  const [csvLink, setCsvLink] = useState(""); // New: for pasted student list link
   const [loading, setLoading] = useState(false);
   const [assessmentName, setAssessmentName] = useState("");
   const [rubricText, setRubricText] = useState("");
@@ -45,16 +47,67 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
   const handleRubricFileChange = (e) => {
     const file = e?.target?.files?.[0] || null;
     setRubricFile(file);
-    // Clear text input if file is selected
     if (file) {
       setRubric("");
       setRubricText("");
+      setRubricLink(""); // Clear link if file is chosen
     }
+  };
+
+  // New: handle pasted rubric link
+  const handleRubricLinkChange = (e) => {
+    setRubricLink(e.target.value);
+    if (e.target.value) setRubricFile(null); // Clear file if link is entered
   };
 
   const handleCsvFileChange = (e) => {
     const file = e?.target?.files?.[0] || null;
     setCsvFile(file);
+    if (file) setCsvLink(""); // Clear link if file is chosen
+  };
+
+  // New: handle pasted student list link
+  const handleCsvLinkChange = (e) => {
+    setCsvLink(e.target.value);
+    if (e.target.value) setCsvFile(null); // Clear file if link is entered
+  };
+
+  // Helper: Convert Google Sheets link to export CSV/XLSX link
+  const getGoogleSheetExportUrl = (url, format = "csv") => {
+    // Example: https://docs.google.com/spreadsheets/d/FILE_ID/edit#gid=0
+    const match = url.match(/\/d\/([a-zA-Z0-9-_]+)\//);
+    if (!match) return null;
+    const fileId = match[1];
+    // Default to first sheet (gid=0)
+    let gid = "0";
+    const gidMatch = url.match(/gid=([0-9]+)/);
+    if (gidMatch) gid = gidMatch[1];
+    if (format === "csv") {
+      return `https://docs.google.com/spreadsheets/d/${fileId}/export?format=csv&gid=${gid}`;
+    } else if (format === "xlsx") {
+      return `https://docs.google.com/spreadsheets/d/${fileId}/export?format=xlsx&gid=${gid}`;
+    }
+    return null;
+  };
+
+  // Helper: Download file from link and return a File object
+  const fetchFileFromLink = async (link, filename = "students.csv") => {
+    let url = link;
+    // If Google Sheets, convert to export link
+    if (link.includes("docs.google.com/spreadsheets")) {
+      // Prefer CSV for student list
+      url = getGoogleSheetExportUrl(link, "csv");
+      filename = "students.csv";
+    }
+    if (!url) throw new Error("Invalid Google Sheets link format.");
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Failed to download file from link.");
+    const blob = await res.blob();
+    // Try to infer extension from content-type
+    if (res.headers.get("content-type")?.includes("sheet") || res.headers.get("content-type")?.includes("excel")) {
+      filename = "students.xlsx";
+    }
+    return new File([blob], filename, { type: blob.type });
   };
 
   const uploadRubric = async () => {
@@ -65,8 +118,20 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
     }
 
     // Validate rubric
-    if (!rubric && !rubricFile) {
-      setError("Please provide a rubric text or upload a rubric file");
+    let rubricFileToUse = rubricFile;
+    if (!rubric && !rubricFile && rubricLink) {
+      setLoading(true);
+      setError("");
+      try {
+        rubricFileToUse = await fetchFileFromLink(rubricLink, "rubric.xlsx");
+      } catch (err) {
+        setError("Failed to download rubric from link: " + err.message);
+        setLoading(false);
+        return;
+      }
+    }
+    if (!rubric && !rubricFileToUse) {
+      setError("Please provide a rubric text, upload a rubric file, or paste a rubric link");
       return;
     }
 
@@ -80,8 +145,10 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
         return;
       }
 
-      // If we have a rubric file, we'll read it in the next step
-      // No need to do anything else here, just proceed to the next step
+      // If we have a rubric file (uploaded or from link), we'll read it in the next step
+      if (rubricFileToUse) {
+        setRubricFile(rubricFileToUse); // Save for next step
+      }
       setCurrentStep(1);
     } catch (err) {
       console.error("Error uploading rubric:", err);
@@ -92,8 +159,20 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
   };
 
   const processCSV = async () => {
-    if (!csvFile) {
-      setError("Please upload a CSV file with student data");
+    let fileToSend = csvFile;
+    if (!csvFile && csvLink) {
+      setLoading(true);
+      setError("");
+      try {
+        fileToSend = await fetchFileFromLink(csvLink);
+      } catch (err) {
+        setError("Failed to download student list from link: " + err.message);
+        setLoading(false);
+        return;
+      }
+    }
+    if (!fileToSend) {
+      setError("Please upload a student list file (CSV or Excel) or paste a valid link.");
       return;
     }
 
@@ -114,7 +193,7 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
 
       // Create form data with all required fields
       console.log('Uploading with name:', assessmentName); // Debug log
-      console.log('CSV file:', csvFile.name, csvFile.type, csvFile.size);
+      console.log('Student list file:', fileToSend.name, fileToSend.type, fileToSend.size);
       
       // If we have a rubric file, use it directly
       let rubricToUse;
@@ -148,12 +227,12 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
       try {
         // Use the API service instead of direct fetch
         console.log('Using assessApi.uploadCSV with:', {
-          csvFile: csvFile.name,
+          csvFile: fileToSend.name,
           rubricFile: rubricToUse.name,
           assessmentName
         });
         
-        const response = await assessApi.uploadCSV(csvFile, rubricToUse, assessmentName || 'Unnamed Assessment');
+        const response = await assessApi.uploadCSV(fileToSend, rubricToUse, assessmentName || 'Unnamed Assessment');
         
         if (response.success) {
           setResults(response.results || []);
@@ -165,18 +244,18 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
           
           setCurrentStep(2);
         } else {
-          setError(response.error || "Failed to process CSV file");
+          setError(response.error || "Failed to process student list file (CSV or Excel)");
         }
       } catch (apiError) {
         console.error("API Error:", apiError);
         
         // Provide more detailed error information
-        let errorMessage = "Failed to process CSV file. ";
+        let errorMessage = "Failed to process student list file (CSV or Excel). ";
         
         if (apiError.message) {
           if (apiError.message.includes("400")) {
             errorMessage += "The server rejected the request. This might be due to invalid file formats or missing data. ";
-            errorMessage += "Please ensure both the CSV and rubric files are in the correct format.";
+            errorMessage += "Please ensure both the student list and rubric files are in the correct format (CSV, Excel, or TXT).";
           } else if (apiError.message.includes("500")) {
             errorMessage += "The server encountered an internal error. Please try again later or contact support.";
           } else {
@@ -188,7 +267,7 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
       }
     } catch (err) {
       console.error("Error processing CSV:", err);
-      setError(`Failed to process CSV file: ${err.message || "Unknown error"}. Please try again.`);
+      setError(`Failed to process student list file (CSV or Excel): ${err.message || "Unknown error"}. Please try again.`);
     } finally {
       setLoading(false);
     }
@@ -278,9 +357,21 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
                 onChange={handleRubricFileChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
                 accept=".txt,.md,.docx,.xlsx"
+                required={!rubricLink && !rubricText}
+                disabled={!!rubricLink}
+              />
+              <div className="my-2 text-center text-gray-500 text-xs">OR</div>
+              <input
+                type="text"
+                id="rubric-link"
+                value={rubricLink}
+                onChange={handleRubricLinkChange}
+                placeholder="Paste Google Sheets or direct file link for rubric"
+                className="w-full px-3 py-2 border border-blue-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                disabled={!!rubricFile}
               />
               <p className="mt-1 text-xs text-gray-500">
-                Supported formats: .txt, .md, .docx, .xlsx
+                Supported formats: .txt, .md, .docx, .xlsx, or Google Sheets link
               </p>
             </div>
           </div>
@@ -290,31 +381,45 @@ const AssessmentWizard = ({ onComplete, onCancel }) => {
           <div className="space-y-6">
             <div>
               <label htmlFor="csv-file" className="block text-sm font-medium text-gray-700 mb-1">
-                Upload Student Data (CSV) <span className="text-red-500">*</span>
+                Upload Student List (CSV or Excel) <span className="text-red-500">*</span>
               </label>
               <input
                 type="file"
                 id="csv-file"
                 onChange={handleCsvFileChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
-                accept=".csv,.xlsx,.txt"
-                required
+                accept=".csv,.xlsx,.xls,.txt"
+                required={!csvLink}
+                disabled={!!csvLink}
+              />
+              <div className="my-2 text-center text-gray-500 text-xs">OR</div>
+              <input
+                type="text"
+                id="csv-link"
+                value={csvLink}
+                onChange={handleCsvLinkChange}
+                placeholder="Paste Google Sheets or direct file link here"
+                className="w-full px-3 py-2 border border-blue-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                disabled={!!csvFile}
               />
               <p className="mt-1 text-xs text-gray-500">
-                Supported formats: .csv, .xlsx, .txt
+                Supported formats: .csv, .xlsx, .xls, .txt, or Google Sheets link
               </p>
               <p className="mt-2 text-sm text-gray-600">
-                CSV file should contain at minimum: student name and GitHub repository URL.
+                File should contain at minimum: student name and GitHub repository URL.
               </p>
             </div>
             
             <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
-              <h3 className="text-sm font-medium text-blue-800 mb-2">CSV Format Example</h3>
+              <h3 className="text-sm font-medium text-blue-800 mb-2">Student List Format Example</h3>
               <pre className="text-xs text-blue-700 bg-blue-100 p-2 rounded overflow-x-auto">
                 name,repo_url<br/>
                 John Doe,https://github.com/johndoe/project<br/>
                 Jane Smith,https://github.com/janesmith/assignment
               </pre>
+              <p className="mt-1 text-xs text-blue-700">
+                You may also upload an Excel file (.xlsx, .xls) with similar columns.
+              </p>
             </div>
           </div>
         );
