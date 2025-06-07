@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import './FormCard.css';
 
 const UploadRubric = ({ onRubric }) => {
+  
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

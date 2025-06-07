@@ -1,18 +1,25 @@
 import os
 import sys
+import argparse
 from agents.controller import ControllerAgent
 from agents.aggregator import AggregatorAgent
 from agents.publisher import PublisherAgent  # Optional, can be omitted if not needed
 from csv_analyzer import process_csv
+
 # Configuration - use direct parameters (not environment variables)
 INPUT_FILE = "input_students.xlsx"
-RUBRIC_JSON = "rubric.json"
 RESULTS_EXCEL = "results.xlsx"
 BATCH_SIZE = 4
 ANALYZER_SLOTS = 4
 TIMEOUT = 120  # seconds per repo
 
 def main():
+    parser = argparse.ArgumentParser(description="Multi-Agent Grading System")
+    parser.add_argument("--rubric", required=True, help="Path to rubric JSON file (provided by frontend)")
+    args = parser.parse_args()
+
+    RUBRIC_JSON = args.rubric
+
     print("=== Multi-Agent Grading System ===")
     print(f"Input File: {INPUT_FILE}")
     print(f"Rubric: {RUBRIC_JSON}")

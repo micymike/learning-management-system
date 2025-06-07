@@ -70,34 +70,75 @@ def process_csv(file_storage):
             print(f"CSV Content: {content}")  # Debug log
             file_storage.seek(0)
             reader = csv.reader(StringIO(content))
-            headers = next(reader, [])
-            validate_csv_headers(headers)
+            first_row = next(reader, [])
 
-            file_storage.seek(0)
-            reader = csv.reader(StringIO(content))
-            headers = next(reader, [])
-            headers_lower = [h.lower() for h in headers]
-            for row in reader:
-                if not any(row):
-                    continue
-                row_dict = {headers[i]: value for i, value in enumerate(row) if i < len(headers)}
-                student_data = {}
-                for header, value in row_dict.items():
-                    if 'name' in header.lower():
-                        student_data['name'] = value.strip()
-                    elif any(x in header.lower() for x in ['github', 'repo']) and 'url' in header.lower():
-                        student_data['repo_url'] = value.strip()
-                    elif 'group' in header.lower():
-                        student_data['group'] = value.strip()
-                    elif 'project' in header.lower():
-                        student_data['project_name'] = value.strip()
-                    elif 'deployed' in header.lower() and 'url' in header.lower():
-                        student_data['deployed_url'] = value.strip()
-                if 'name' in student_data and 'repo_url' in student_data:
-                    results.append(student_data)
-            if not results:
-                raise ValueError('No student data found in CSV with required columns (name, repo_url)')
-            return results
+            # Detect if this is the new format (group name as first row, no headers)
+            def is_probably_group_name(row):
+                # Heuristic: not a date, not an email, not a header
+                if not row:
+                    return False
+                val = row[0].strip().lower()
+                # If it looks like a date or email, it's not a group name
+                if re.match(r"\d{1,2}/\d{1,2}/\d{4}", val) or "@" in val or "name" in val or "repo" in val:
+                    return False
+                return True
+
+            if is_probably_group_name(first_row) and len(first_row) == 1:
+                # New format: group name, then student rows
+                group_name = first_row[0].strip()
+                for row in reader:
+                    if not any(row) or len(row) < 7:
+                        continue
+                    # Map columns: timestamp, email, first name, last name, project name, repo url, deployed url
+                    student_data = {
+                        "group": group_name,
+                        "name": f"{row[2].strip()} {row[3].strip()}",
+                        "repo_url": row[5].strip(),
+                        "project_name": row[4].strip(),
+                        "deployed_url": row[6].strip(),
+                        "email": row[1].strip(),
+                        "timestamp": row[0].strip()
+                    }
+                    # Only add if repo_url and name are present
+                    if student_data["name"] and student_data["repo_url"]:
+                        results.append(student_data)
+                if not results:
+                    raise ValueError('No student data found in CSV with required columns (name, repo_url)')
+                return results
+            else:
+                # Old format: header-based
+                headers = first_row
+                validate_csv_headers(headers)
+
+                file_storage.seek(0)
+                reader = csv.reader(StringIO(content))
+                headers = next(reader, [])
+                headers_lower = [h.lower() for h in headers]
+                for row in reader:
+                    if not any(row):
+                        continue
+                    row_dict = {headers[i]: value for i, value in enumerate(row) if i < len(headers)}
+                    student_data = {}
+                    for header, value in row_dict.items():
+                        if 'name' in header.lower():
+                            student_data['name'] = value.strip()
+                        elif any(x in header.lower() for x in ['github', 'repo']) and 'url' in header.lower():
+                            student_data['repo_url'] = value.strip()
+                        elif 'group' in header.lower():
+                            student_data['group'] = value.strip()
+                        elif 'project' in header.lower():
+                            student_data['project_name'] = value.strip()
+                        elif 'deployed' in header.lower() and 'url' in header.lower():
+                            student_data['deployed_url'] = value.strip()
+                        elif 'email' in header.lower():
+                            student_data['email'] = value.strip()
+                        elif 'timestamp' in header.lower():
+                            student_data['timestamp'] = value.strip()
+                    if 'name' in student_data and 'repo_url' in student_data:
+                        results.append(student_data)
+                if not results:
+                    raise ValueError('No student data found in CSV with required columns (name, repo_url)')
+                return results
 
         elif filename.endswith(('.xlsx', '.xls')):
             df = pd.read_excel(file_storage)
