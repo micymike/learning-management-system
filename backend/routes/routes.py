@@ -288,7 +288,7 @@ def upload_csv():
         # === AGENTIC SYSTEM INTEGRATION ===
         try:
             print("\nProcessing CSV file...")
-            students = process_csv(csv_file)
+            students = process_csv(student_list_file)
             if not students:
                 error_msg = "No student data found in CSV"
                 print("Error:", error_msg)
@@ -327,13 +327,67 @@ def upload_csv():
                 aggregator.append_results(results)
                 all_results.extend(results)
 
+            # Save assessment to MongoDB using references to StudentAssessment
+            from models import Assessment, Student, StudentAssessment
+
+            # Create the assessment first (empty results)
+            assessment_doc = Assessment(
+                name=assessment_name,
+                rubric=rubric_items,
+                results=[]
+            )
+            assessment_doc.save()
+
+            # Map student names to Student documents for reference
+            student_map = {s.name.strip().lower(): s for s in Student.objects()}
+
+            student_assessment_ids = []
+            for result in all_results:
+                # Robustly extract student name (case-insensitive, fallback to "Name" or "name")
+                student_name = ""
+                for key in result.keys():
+                    if key.lower() == "name":
+                        student_name = str(result[key]).strip()
+                        break
+                student_name_lc = student_name.lower()
+                student_obj = student_map.get(student_name_lc)
+                # If student not found, create a placeholder Student
+                if not student_obj:
+                    student_obj = Student(name=student_name or "Unknown")
+                    student_obj.save()
+                    student_map[student_name_lc] = student_obj
+
+                scores_data = result.get("scores")
+                if not scores_data:
+                    print(f"Skipping StudentAssessment for {student_name} (no scores present)")
+                    continue
+                sa = StudentAssessment(
+                    student=student_obj,
+                    assessment=assessment_doc,
+                    scores=scores_data,
+                    repo_url=result.get("repo_url", ""),
+                    submission=result.get("submission", "")
+                )
+                sa.save()
+                student_assessment_ids.append(sa.id)
+
+            # Update assessment with references to StudentAssessment
+            assessment_doc.results = student_assessment_ids
+            assessment_doc.save()
+
+            # Prepare response data
             response_data = {
                 "success": True,
-                "results": all_results,
+                "results": [sa.to_dict() for sa in StudentAssessment.objects(id__in=student_assessment_ids)],
                 "assessment": {
-                    "name": assessment_name,
+                    "id": str(assessment_doc.id),
+                    "numeric_id": assessment_doc.numeric_id,
+                    "name": assessment_doc.name,
+                    "created_at": assessment_doc.created_at.isoformat() if assessment_doc.created_at else None,
+                    "updated_at": assessment_doc.updated_at.isoformat() if assessment_doc.updated_at else None
                 }
             }
+            print("\nAssessment saved to MongoDB with ID:", str(assessment_doc.id))
             print("\nSending agentic response:", json.dumps(response_data, indent=2))
             return jsonify(response_data)
         except Exception as e:
@@ -475,6 +529,39 @@ def get_student(student_id):
         print(f"Error fetching student: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+# --- MOVE GET ASSESSMENT ROUTE ABOVE EXCEL ROUTE ---
+@routes_blueprint.route("/assessments/<assessment_id>", methods=["GET", "OPTIONS"])
+@cors_decorator()
+def get_assessment(assessment_id):
+    """Get a specific assessment by ID"""
+    if request.method == "OPTIONS":
+        response = current_app.make_default_options_response()
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Origin,X-Requested-With,Accept')
+        response.headers.add('Access-Control-Allow-Methods', 'GET')
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
+    try:
+        print(f"Fetching assessment with ID: {assessment_id}")
+        # Validate ObjectId format
+        if not ObjectId.is_valid(assessment_id):
+            print(f"Invalid ObjectId format: {assessment_id}")
+            return jsonify({"error": f"'{assessment_id}' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string"}), 400
+        assessment = Assessment.objects(id=assessment_id).first()
+        if not assessment:
+            print(f"Assessment with ID {assessment_id} not found")
+            return jsonify({"error": "Assessment not found"}), 404
+        assessment_dict = assessment.to_dict()
+        assessment_dict['_id'] = assessment_dict['id']
+        print(f"Returning assessment: {assessment_dict['name']}")
+        return jsonify({
+            "success": True,
+            "assessment": assessment_dict
+        })
+    except Exception as e:
+        print(f"Error fetching assessment: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 @routes_blueprint.route("/assessments/<assessment_id>/excel", methods=["GET", "OPTIONS"])
 @cors_decorator()
 def download_excel(assessment_id):
@@ -513,8 +600,31 @@ def download_excel(assessment_id):
         return jsonify({"error": "Failed to fetch assessment"}), 500
     
     try:
-        # Use the improved Excel export from csv_analyzer
-        output = generate_scores_excel(results)
+        # Get student assessments from the results IDs
+        student_assessments = []
+        for result_id in results:
+            sa = StudentAssessment.objects(id=result_id).first()
+            if sa:
+                # Convert to dict format expected by generate_scores_excel
+                sa_dict = {
+                    "name": sa.student.name if sa.student else "Unknown",
+                    "repo_url": sa.repo_url,
+                    "scores": sa.scores
+                }
+                student_assessments.append(sa_dict)
+        
+        # Use the improved Excel export from csv_analyzer with engine specified
+        output = io.BytesIO()
+        df = pd.DataFrame([{
+            "Name": sa["name"],
+            "Repository": sa["repo_url"],
+            "Scores": str(sa["scores"])
+        } for sa in student_assessments])
+        
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Assessment Results')
+            
+        output.seek(0)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         response = send_file(
             output,

@@ -75,7 +75,7 @@ async function fetchWithErrorHandling(url, options = {}) {
     if (contentDisposition && contentDisposition.includes('attachment')) {
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const filename = contentDisposition.split('filename=')[1]?.replace(/\"/g, '');
+      const filename = contentDisposition.split('filename=')[1]?.replace(/"/g, '');
       if (!filename) {
         throw new Error('No filename provided in response headers');
       }
@@ -170,16 +170,14 @@ export const assessApi = {
         credentials: 'include'
       });
       
-      // The backend returns the assessment directly, not wrapped in an object
-      if (response && Object.keys(response).length > 0) {
-        // Check if we have a valid assessment object
-        if (response.name) {
-          // Ensure _id field exists
-          if (!response._id && response.id) {
-            response._id = response.id;
-          }
-          return { success: true, data: response };
+      // The backend returns { success, assessment }
+      if (response && response.success && response.assessment) {
+        const assessment = response.assessment;
+        // Ensure _id field exists
+        if (!assessment._id && assessment.id) {
+          assessment._id = assessment.id;
         }
+        return { success: true, data: assessment };
       }
       
       // If we get here, the response doesn't contain a valid assessment
@@ -399,7 +397,7 @@ export const assessApi = {
         // Get filename from Content-Disposition header or use default
         const contentDisposition = response.headers.get('content-disposition');
         const filename = contentDisposition && contentDisposition.includes('filename=') 
-          ? contentDisposition.split('filename=')[1].replace(/\"/g, '')
+          ? contentDisposition.split('filename=')[1].replace(/"/g, '')
           : `assessment_${assessmentId}.xlsx`;
         
         a.href = url;

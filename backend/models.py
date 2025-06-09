@@ -16,8 +16,8 @@ class Assessment(Document):
     created_at = DateTimeField(default=datetime.utcnow)
     updated_at = DateTimeField(default=datetime.utcnow)
     numeric_id = IntField()  # Optional numeric ID for easier reference
-    rubric = ListField(DictField(), required=True)  # Store rubric as list of dicts
-    results = ListField(DictField())  # Store assessment results
+    rubric = DictField(required=True)  # Store rubric as a single dict
+    results = ListField(ReferenceField('StudentAssessment'))  # Store references to StudentAssessment
 
     def save(self, *args, **kwargs):
         """Override save to set numeric_id if not already set"""
@@ -29,6 +29,9 @@ class Assessment(Document):
 
     def to_dict(self):
         """Convert assessment to dictionary format"""
+        # Get result IDs as strings instead of trying to convert objects
+        result_ids = [str(r.id) for r in self.results] if self.results else []
+        
         return {
             'id': str(self.id),
             'numeric_id': self.numeric_id,
@@ -37,7 +40,7 @@ class Assessment(Document):
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat(),
             'rubric': self.rubric,
-            'results': self.results
+            'results': result_ids
         }
 
 class StudentAssessment(Document):

@@ -14,11 +14,14 @@ import re
 
 def validate_csv_headers(headers):
     """
-    Validates that the CSV headers contain 'name' and 'repo_url'.
+    Validates that the CSV headers contain a name column and a repo column.
+    Accepts any header containing 'name' and any header containing 'repo'.
     """
     headers_lower = [h.lower() for h in headers]
-    if not ('name' in headers_lower and any(('github' in h or 'repo' in h) and 'url' in h for h in headers_lower)):
-        raise ValueError('CSV file must contain columns for student name and repository URL (e.g., "name" and "repo_url")')
+    has_name = any('name' in h for h in headers_lower)
+    has_repo = any('repo' in h for h in headers_lower)
+    if not (has_name and has_repo):
+        raise ValueError('CSV file must contain columns for student name and repository (e.g., "name" and "repo_url")')
 
 class ScoreManager:
     def __init__(self):
@@ -129,7 +132,8 @@ def process_csv(file_storage):
                     for header, value in row_dict.items():
                         if 'name' in header.lower():
                             student_data['name'] = value.strip()
-                        elif any(x in header.lower() for x in ['github', 'repo']) and 'url' in header.lower():
+                        # Accept any header containing 'repo' (for real-world and test cases)
+                        elif 'repo' in header.lower():
                             student_data['repo_url'] = value.strip()
                         elif 'group' in header.lower():
                             student_data['group'] = value.strip()
@@ -148,7 +152,7 @@ def process_csv(file_storage):
                 return results
 
         elif filename.endswith(('.xlsx', '.xls')):
-            df = pd.read_excel(file_storage)
+            df = pd.read_excel(file_storage, engine="openpyxl")
             headers = df.columns.tolist()
             # Do not validate headers yet, allow flexible formats
             headers_norm = [normalize_header(h) for h in headers]
