@@ -285,146 +285,63 @@ def upload_csv():
             print("Error:", error_msg)
             return jsonify({"error": error_msg}), 400
         
-        # Process student data
+        # === AGENTIC SYSTEM INTEGRATION ===
         try:
-            print("\nProcessing student list file (CSV or Excel)...")
-            students = process_csv(student_list_file)
+            print("\nProcessing CSV file...")
+            students = process_csv(csv_file)
             if not students:
-                error_msg = "No student data found in student list file (CSV or Excel)"
+                error_msg = "No student data found in CSV"
                 print("Error:", error_msg)
                 return jsonify({"error": error_msg}), 400
-
             print(f"\nFound {len(students)} students")
-
         except Exception as e:
             error_msg = f"Error processing student list file: {str(e)}"
             print("Error:", error_msg)
             return jsonify({"error": error_msg}), 400
-        
-        results = []
-        student_assessments = []
-        
-        # Process each studentnow 
-        for student in students:
-            name = student['name']
-            repo_url = student['repo_url']
-            print(f"\nProcessing student: {name}")
-            print(f"Repository: {repo_url}")
-            
-            try:
-                # Get or create student record
-                student_record = Student.objects(name=name).first()
-                if not student_record:
-                    student_record = Student(name=name)
-                    student_record.save()
-                
-                # Analyze repository
-                code_str = analyze_github_repo(repo_url)
-                if not code_str:
-                    print(f"No code found for {name}")
-                    results.append({
-                        "name": name,
-                        "repo_url": repo_url,
-                        "error": "No code found",
-                        "scores": {"Error": "No code found"}
-                    })
-                    continue
-                
-                print(f"Retrieved code ({len(code_str)} chars)")
-                
-                # Assess code
-                assessment = assess_code(code_str, rubric_items)
-                print(f"\nAssessment results for {name}:")
-                print(json.dumps(assessment, indent=2))
-                
-                # Store results
-                student_assessments.append({
-                    "student": student_record,
-                    "scores": assessment,
-                    "repo_url": repo_url,
-                    "submission": code_str
-                })
-                
-                results.append({
-                    "name": name,
-                    "repo_url": repo_url,
-                    "scores": assessment,
-                    "assessment": {
-                        'total_points': assessment.get('total_points', 0),
-                        'max_points': assessment.get('max_points', 0),
-                        'percentage': assessment.get('percentage', 0),
-                        'passing': assessment.get('passing', False)
-                    }
-                })
-                
-            except Exception as e:
-                print(f"Error processing {name}: {str(e)}")
-                results.append({
-                    "name": name,
-                    "repo_url": repo_url,
-                    "error": str(e),
-                    "scores": {"Error": "Processing failed"}
-                })
-        
-        session['last_assessment'] = results
-        
+
+        # Use agentic system from backend/
         try:
-            # Save assessment
-            print("\nSaving assessment to database...")
-            new_assessment = Assessment(
-                name=assessment_name,
-                rubric=[rubric_items],
-                results=results
-            ).save()
-            
-            # Save student assessments
-            print("\nSaving student assessments...")
-            for data in student_assessments:
-                StudentAssessment(
-                    student=data["student"],
-                    assessment=new_assessment,
-                    scores=data["scores"],
-                    repo_url=data["repo_url"],
-                    submission=data["submission"]
-                ).save()
-            
+            from aggregator import AggregatorAgent
+            from controller import ControllerAgent
+
+            # Use a temp file for results.xlsx to avoid conflicts
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as temp_excel:
+                results_excel = temp_excel.name
+
+            aggregator = AggregatorAgent(results_excel)
+            controller = ControllerAgent(
+                students=students,
+                rubric=rubric_items,
+                batch_size=4,
+                analyzer_slots=4,
+                aggregator=aggregator,
+                timeout=120
+            )
+            # Run agentic workflow
+            all_results = []
+            total = len(students)
+            batches = [students[i:i+4] for i in range(0, total, 4)]
+            for batch in batches:
+                results = controller._process_batch(batch)
+                aggregator.append_results(results)
+                all_results.extend(results)
+
             response_data = {
                 "success": True,
-                "results": results,
+                "results": all_results,
                 "assessment": {
-                    "id": str(new_assessment.id),
-                    "name": new_assessment.name,
-                    "date": new_assessment.date.isoformat() if new_assessment.date else None,
-                    "created_at": new_assessment.created_at.isoformat()
+                    "name": assessment_name,
                 }
             }
-            
-            # Check if Excel download was requested
-            if request.args.get('format') == 'excel':
-                try:
-                    # Generate Excel file
-                    excel_file = generate_scores_excel(results)
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    return send_file(
-                        excel_file,
-                        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                        as_attachment=True,
-                        download_name=f"assessment_scores_{timestamp}.xlsx"
-                    )
-                except Exception as excel_error:
-                    print(f"Error generating Excel: {excel_error}")
-                    # Fall back to JSON response
-            
-            print("\nSending response:", json.dumps(response_data, indent=2))
+            print("\nSending agentic response:", json.dumps(response_data, indent=2))
             return jsonify(response_data)
-            
         except Exception as e:
-            error_msg = f"Database error: {str(e)}"
+            error_msg = f"Agentic system error: {str(e)}"
             print("Error:", error_msg)
             return jsonify({
-                "error": "Database error",
-                "message": str(e),
-                "results": results  # Return results even if DB save fails
+                "error": "Agentic system error",
+                "message": str(e)
             }), 500
             
     except Exception as e:

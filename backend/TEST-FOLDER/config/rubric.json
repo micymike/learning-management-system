@@ -1,0 +1,60 @@
+{
+  "total_points": 12,
+  "categories": {
+    "correctness": {
+      "max_points": 4,
+      "description": "Code works correctly and produces expected outputs",
+      "criteria": [
+        "Main functionality works as expected",
+        "Edge cases are handled properly",
+        "No critical bugs or errors",
+        "All requirements are met"
+      ]
+    },
+    "organization": {
+      "max_points": 3,
+      "description": "Code is well-organized and readable",
+      "criteria": [
+        "Logical file and folder structure",
+        "Functions and classes are well-organized",
+        "Code follows consistent style"
+      ]
+    },
+    "documentation": {
+      "max_points": 2,
+      "description": "Code is well-documented",
+      "criteria": [
+        "README file exists and is informative",
+        "Code comments explain complex logic"
+      ]
+    },
+    "testing": {
+      "max_points": 2,
+      "description": "Proper testing and error handling",
+      "criteria": [
+        "Test cases are present",
+        "Error handling is implemented"
+      ]
+    },
+    "efficiency": {
+      "max_points": 1,
+      "description": "Code follows best practices",
+      "criteria": [
+        "Efficient algorithms and data structures"
+      ]
+    }
+  },
+  "file_patterns": {
+    "readme": ["README.md", "README.txt", "readme.md", "readme.txt"],
+    "python": ["*.py"],
+    "tests": ["test_*.py", "*_test.py", "tests/*.py"],
+    "config": ["*.json", "*.yaml", "*.yml", "*.ini", "requirements.txt"]
+  },
+  "analysis_focus": [
+    "Check for README file presence and quality",
+    "Analyze Python code structure and style",
+    "Look for test files and error handling",
+    "Assess overall project organization",
+    "Evaluate code efficiency and best practices"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "correctness": {
+    "max": 4,
+    "desc": "Correctness of implementation, meets requirements, no major bugs."
+  },
+  "organization": {
+    "max": 3,
+    "desc": "Code organization, modularity, readability, use of folders/modules."
+  },
+  "documentation": {
+    "max": 2,
+    "desc": "Presence and quality of README, code comments, and docstrings."
+  },
+  "tests": {
+    "max": 2,
+    "desc": "Presence and quality of test cases, error handling."
+  },
+  "efficiency": {
+    "max": 1,
+    "desc": "Efficient code, use of best practices, avoids unnecessary computation."
+  }
+}

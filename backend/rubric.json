@@ -1,0 +1,19 @@
+{
+  "criteria": [
+    {
+      "name": "Code Quality",
+      "description": "Assess code readability, structure, and maintainability.",
+      "weight": 0.4
+    },
+    {
+      "name": "Functionality",
+      "description": "Evaluate if the code meets the assignment requirements.",
+      "weight": 0.4
+    },
+    {
+      "name": "Documentation",
+      "description": "Check for clear comments and documentation.",
+      "weight": 0.2
+    }
+  ]
+}

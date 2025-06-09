@@ -82,6 +82,8 @@ SCORING FORMAT REQUIREMENTS:
 - Do NOT output a range or a label; always output a single numeric score for each criterion.
 - After the score, provide a brief justification and relevant code examples.
 
+MANDATORY: At the end of your assessment, ALWAYS provide a summary or conclusion that briefly explains the overall performance and any key points, even if the code is perfect. The summary must be present in every assessment.
+
 RUBRIC CONTENT:
 {formatted_rubric}
 
@@ -173,7 +175,15 @@ def parse_flexible_assessment_response(assessment_text, raw_rubric):
         if not line:
             continue
 
-        # Try each score pattern
+        # Ignore lines that look like code or CSS (start with quotes, curly braces, or are just code fragments)
+        if (
+            line.startswith("'") or line.startswith('"') or
+            line.startswith("{") or line.startswith("}") or
+            re.match(r"^[\w\-]+\s*:", line) and not re.search(r"\d+/?\d+", line)
+        ):
+            continue
+
+        # Try each score pattern, but only on lines that look like rubric feedback
         for pattern in score_patterns:
             matches = re.findall(pattern, line, re.IGNORECASE)
             for match in matches:
@@ -181,19 +191,22 @@ def parse_flexible_assessment_response(assessment_text, raw_rubric):
                     # Score out of max
                     score = float(match[0])
                     max_score = float(match[1])
-                    extracted_scores.append({
-                        'score': score,
-                        'max_score': max_score,
-                        'context': line,
-                        'percentage': (score / max_score * 100) if max_score > 0 else 0
-                    })
+                    # Only accept if the line contains a rubric keyword or "criterion"
+                    if re.search(r"criterion|score|assessment|points|total|overall", line, re.IGNORECASE):
+                        extracted_scores.append({
+                            'score': score,
+                            'max_score': max_score,
+                            'context': line,
+                            'percentage': (score / max_score * 100) if max_score > 0 else 0
+                        })
                 elif isinstance(match, str):
                     # Percentage
                     percentage = float(match)
-                    extracted_scores.append({
-                        'percentage': percentage,
-                        'context': line
-                    })
+                    if re.search(r"criterion|score|assessment|points|total|overall", line, re.IGNORECASE):
+                        extracted_scores.append({
+                            'percentage': percentage,
+                            'context': line
+                        })
 
     result['extracted_scores'] = extracted_scores
 
