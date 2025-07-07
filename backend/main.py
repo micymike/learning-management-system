@@ -5,6 +5,8 @@ from flask_session import Session
 from routes.routes import routes_blueprint
 from routes.rag_routes import rag_routes
 from routes.api_routes import api_routes
+from routes.agent_routes import agent_routes
+from routes.enhanced_routes import enhanced_routes
 from models import db, Assessment
 import os
 
@@ -52,6 +54,9 @@ CORS(app, supports_credentials=True, resources={
 app.register_blueprint(routes_blueprint)
 app.register_blueprint(rag_routes)
 app.register_blueprint(api_routes)
+app.register_blueprint(agent_routes)
+app.register_blueprint(enhanced_routes)
+app.register_blueprint(enhanced_routes)
 
 # Assessment routes with error handling
 @app.route('/assessments/<int:assessment_id>', methods=['GET'])

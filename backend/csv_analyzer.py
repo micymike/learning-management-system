@@ -1,4 +1,7 @@
-# This file is used in the backend to handle csv files, this csv file contains student names and their github urls.
+# Multi-Agent CSV Processing System
+import asyncio
+from agents.orchestrator import AgentOrchestrator
+from agents.csv_agent import CSVAgent
 import csv
 from io import StringIO
 from datetime import datetime
@@ -189,3 +192,41 @@ def format_scores_for_display(scores):
     """
     df = pd.DataFrame(scores)
     return df.to_html(classes=['table', 'table-striped', 'table-bordered'], index=False)
+
+# Multi-Agent System Integration
+orchestrator = AgentOrchestrator()
+
+async def process_with_agents(file_storage, rubric):
+    """
+    Process CSV file and rubric using the multi-agent system
+    """
+    try:
+        filename = file_storage.filename.lower()
+        
+        if filename.endswith('.csv'):
+            content = file_storage.read().decode('utf-8')
+            file_storage.seek(0)
+            csv_data = {
+                'file_content': content,
+                'filename': filename
+            }
+        elif filename.endswith(('.xlsx', '.xls')):
+            csv_data = {
+                'file_storage': file_storage,
+                'filename': filename
+            }
+        else:
+            raise ValueError('Unsupported file type')
+        
+        # Process using orchestrator
+        result = await orchestrator.process_assessment(csv_data, rubric)
+        return result
+        
+    except Exception as e:
+        return {'error': str(e)}
+
+def run_agent_processing(file_storage, rubric):
+    """
+    Synchronous wrapper for async agent processing
+    """
+    return asyncio.run(process_with_agents(file_storage, rubric))
