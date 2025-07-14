@@ -162,3 +162,26 @@ class AgentOrchestrator:
                 'error': str(e),
                 'status': 'processing_error'
             }
+
+# === Double Agentic LLM Functions ===
+
+def process_with_azure_openai(repo, prompt):
+    """
+    Simulate processing with Azure OpenAI.
+    Replace this stub with actual Azure OpenAI API logic.
+    Returns a dict. If a content policy error is encountered, return {'error': 'content_policy'}
+    """
+    # TODO: Implement actual Azure OpenAI call
+    # Example stub: simulate a content policy error if prompt contains "policy"
+    if "policy" in prompt.lower():
+        return {"error": "content_policy"}
+    return {"response": f"Azure OpenAI processed repo: {repo} with prompt: {prompt}"}
+
+def process_with_openai(repo, prompt):
+    """
+    Simulate processing with standard OpenAI.
+    Replace this stub with actual OpenAI API logic.
+    Returns a dict.
+    """
+    # TODO: Implement actual OpenAI call
+    return {"response": f"OpenAI processed repo: {repo} with prompt: {prompt}"}
