@@ -290,6 +290,32 @@ def rag_assess_excel():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@rag_routes.route("/rag/embed-good-repo", methods=["POST"])
+def embed_good_repo():
+    """Allow instructor to upload a good repository for vector embedding (ChromaDB)"""
+    data = request.json
+    repo_url = data.get('repo_url')
+    rubric = data.get('rubric', '')
+    example_id = data.get('example_id', 'instructor_example')
+
+    if not repo_url:
+        return jsonify({'error': 'No repository URL provided'}), 400
+
+    # Extract code from the repo
+    from repo_analyzer import analyze_github_repo
+    code = analyze_github_repo(repo_url)
+    if not code or code.startswith('Error') or code.startswith('Failed'):
+        return jsonify({'error': f'Could not extract code from repository: {code}'}), 400
+
+    # You can add more metadata as needed
+    scores = {'source': 'instructor', 'quality': 'good'}
+
+    # Embed the example using ChromaDB
+    trainer = RAGTrainer(index_name="directed")
+    trainer.add_assessment_example(code, rubric, scores, example_id=example_id)
+
+    return jsonify({'success': True, 'message': 'Repository embedded successfully'})
+
 def parse_rubric(rubric_content):
     """Parse rubric to extract criteria and scoring levels"""
     rubric_data = {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { HiHome, HiClipboardCheck, HiUserGroup, HiChartBar, HiTrendingUp } from 'react-icons/hi';
+import { HiHome, HiClipboardCheck, HiUserGroup, HiChartBar, HiTrendingUp, HiUpload } from 'react-icons/hi';
 
 const Sidebar = () => {
   const [isMobile, setIsMobile] = useState(false);
@@ -25,6 +25,7 @@ const Sidebar = () => {
     { path: '/students', icon: HiUserGroup, label: 'Students' },
     { path: '/student-tracking', icon: HiTrendingUp, label: 'Student Tracking' },
     { path: '/analytics', icon: HiChartBar, label: 'Analytics' },
+    { path: '/upload-good-repo', icon: HiUpload, label: 'Upload Good Repo' },
   ];
 
   const SidebarContent = () => (

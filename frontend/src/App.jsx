@@ -9,6 +9,7 @@ import StudentDetails from "./components/StudentDetails";
 import StudentTracking from "./components/StudentTracking";
 import Analytics from "./components/Analytics";
 import Sidebar from "./components/Sidebar";
+import UploadGoodRepo from "./components/UploadGoodRepo";
 import './index.css';
 
 function AppWrapper() {
@@ -88,6 +89,14 @@ function AppWrapper() {
                   element={
                     <div className="page-transition">
                       <Analytics />
+                    </div>
+                  } 
+                />
+                <Route 
+                  path="/upload-good-repo" 
+                  element={
+                    <div className="page-transition">
+                      <UploadGoodRepo />
                     </div>
                   } 
                 />
