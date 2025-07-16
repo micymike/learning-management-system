@@ -2,6 +2,7 @@ from .base_agent import BaseAgent, AgentStatus
 from typing import Dict, Any, List
 import openai
 import os
+import re
 
 class BatchAgent(BaseAgent):
     def __init__(self):
@@ -67,38 +68,57 @@ class BatchAgent(BaseAgent):
             results = []
             for student in batch:
                 results.append({
-                    'student_name': student.get('name'),
+                    'student_name': student.get('student_name'),
                     'repo_url': student.get('repo_url', ''),
                     'scores': {'total': 15},
                     'status': 'completed_fallback'
                 })
             return results
 
-        # Combine multiple students into single prompt
-        combined_prompt = f"Rubric:\n{rubric}\n\nEvaluate the following {len(batch)} code submissions:\n\n"
+        # Combine multiple students into single prompt with structured format instructions
+        combined_prompt = f"""Rubric:
+{rubric}
+
+Evaluate the following {len(batch)} code submissions. For EACH student, provide scores in this EXACT format:
+
+Student X (Name):
+- Criterion1: Score
+  - Justification for criterion1 score
+- Criterion2: Score
+  - Justification for criterion2 score
+- Criterion3: Score
+  - Justification for criterion3 score
+
+Where:
+- Each criterion is on its own line starting with a dash
+- Each score is a number based on the rubric without any text after it
+- Each justification is on the next line, indented with 2 spaces and starting with a dash
+
+Here are the submissions:
+"""
 
         for i, student in enumerate(batch, 1):
-            combined_prompt += f"Student {i} ({student.get('name', 'Unknown')}):\n"
-            combined_prompt += f"Code:\n{student.get('code', '')}\n\n"
-
-        combined_prompt += "Provide scores for each student in format:\nStudent X: [scores and justifications]"
+            combined_prompt += f"\nStudent {i} ({student.get('student_name', 'Unknown')}):\nCode:\n{student.get('code', '')}\n"
 
         try:
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "You are a batch code assessor. Evaluate multiple submissions efficiently."},
+                    {"role": "system", "content": "You are a batch code assessor. Evaluate multiple submissions efficiently. Follow the EXACT output format requested in the prompt. Always provide scores as numbers between 1-10 for each criterion, followed by justifications on the next line with proper indentation."},
                     {"role": "user", "content": combined_prompt}
                 ],
-                temperature=0.2
+                temperature=0.1
             )
+            print("=== OpenAI Batch Response ===")
+            print(response.choices[0].message.content)
+            print("============================")
             return self._parse_batch_response(response.choices[0].message.content, batch)
         except Exception as e:
             print(f"Batch OpenAI API call failed: {e}")
             results = []
             for student in batch:
                 results.append({
-                    'student_name': student.get('name'),
+                    'student_name': student.get('student_name'),
                     'repo_url': student.get('repo_url', ''),
                     'scores': {'total': 10},
                     'status': 'completed_with_error'
@@ -107,27 +127,54 @@ class BatchAgent(BaseAgent):
     
     def _parse_batch_response(self, content: str, batch: List[Dict]) -> List[Dict]:
         results = []
-        lines = content.split('\n')
         
-        for i, student in enumerate(batch, 1):
+        for idx, student in enumerate(batch):
+            student_name = student.get('student_name')
             student_result = {
-                'student_name': student.get('name'),
+                'student_name': student_name,
                 'repo_url': student.get('repo_url', ''),
                 'scores': {},
                 'status': 'completed'
             }
             
-            # Simple parsing - look for "Student X:" patterns
-            for line in lines:
-                if f'Student {i}:' in line:
-                    # Extract basic score info
-                    if 'score' in line.lower():
-                        try:
-                            score = int(''.join(filter(str.isdigit, line)))
-                            student_result['scores']['total'] = score
-                        except:
-                            student_result['scores']['total'] = 0
+            # Look for this student's section in the content
+            student_pattern = rf"Student \d+\s*\({student_name}\):"
+            student_match = re.search(student_pattern, content)
+            
+            if student_match:
+                # Find the start of this student's section
+                start_pos = student_match.start()
+                
+                # Find the start of the next student's section or end of content
+                next_student_match = re.search(r"Student \d+\s*\(.*?\):", content[start_pos + 1:])
+                end_pos = len(content) if not next_student_match else start_pos + 1 + next_student_match.start()
+                
+                # Extract this student's section
+                student_section = content[start_pos:end_pos]
+                
+                # Extract criteria scores using regex that matches our requested format
+                # Format: "- Criterion: Score" followed by indented "- Justification"
+                criteria_pattern = r"- ([^:]+):\s*(\d+)\s*\n\s+- ([^\n]+)"
+                criteria_matches = re.findall(criteria_pattern, student_section)
+                
+                for criterion, score, justification in criteria_matches:
+                    criterion = criterion.strip()
+                    student_result['scores'][criterion] = {
+                        'mark': int(score),
+                        'justification': justification.strip()
+                    }
+                
+                # Calculate total score
+                if student_result['scores']:
+                    total_score = sum(item['mark'] for item in student_result['scores'].values())
+                    student_result['scores']['total'] = total_score
             
             results.append(student_result)
+        
+        # Debug output
+        print("=== DEBUG: Parsed Results ===")
+        import json
+        print(json.dumps(results, indent=2))
+        print("=== END DEBUG ===")
         
         return results

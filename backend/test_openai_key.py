@@ -58,6 +58,14 @@ def test_standard_openai_key():
         print(f"ERROR: Standard OpenAI API key validation failed: {e}")
         return False
 
+def test_process_with_azure_openai():
+    from agents.orchestrator import process_with_azure_openai
+    print("\n=== Testing process_with_azure_openai ===")
+    repo = "https://github.com/example/repo"
+    prompt = "Summarize the main functionality of this repository."
+    result = process_with_azure_openai(repo, prompt)
+    print("Result from process_with_azure_openai:", result)
+
 if __name__ == "__main__":
     # Load environment variables
     load_dotenv()
@@ -67,6 +75,8 @@ if __name__ == "__main__":
     
     print("\n=== Testing Standard OpenAI API Key ===")
     standard_success = test_standard_openai_key()
+    
+    test_process_with_azure_openai()
     
     if azure_success and standard_success:
         print("\nBoth API keys are valid!")

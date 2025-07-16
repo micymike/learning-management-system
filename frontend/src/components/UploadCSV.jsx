@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import './FormCard.css';
 
-const UploadCSV = ({ onReport, rubric }) => {
+const UploadCSV = ({ onReport }) => {
   const [file, setFile] = useState(null);
+  const [rubricFile, setRubricFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -20,34 +21,41 @@ const UploadCSV = ({ onReport, rubric }) => {
     }
   };
 
+  const handleRubricChange = (e) => {
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      setRubricFile(selectedFile);
+      setError("");
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!file) {
-      setError("Please select a file.");
+      setError("Please select a student CSV file.");
       return;
     }
-    
-    if (!rubric) {
-      setError("No rubric available. Please upload or select a rubric first.");
+    if (!rubricFile) {
+      setError("Please select a rubric file.");
       return;
     }
-    
+
     setLoading(true);
     setError("");
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("rubric", rubric);
-    
+    formData.append("rubric", rubricFile);
+
     try {
-      const res = await fetch("/upload_csv", {
+      const res = await fetch("/api/agentic/upload_csv", {
         method: "POST",
         body: formData,
       });
-      
+
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
-      
+
       const data = await res.json();
       if (data.results) {
         onReport({ scores: data.results });
@@ -63,7 +71,7 @@ const UploadCSV = ({ onReport, rubric }) => {
 
   return (
     <div className="form-card jungle-green-bg animate-fadein">
-      <h2>Upload Student Data</h2>
+      <h2>Upload Student Data & Rubric</h2>
       <p className="file-info">
         Supported formats: CSV, Excel (.xlsx, .xls), or TXT
       </p>
@@ -72,6 +80,12 @@ const UploadCSV = ({ onReport, rubric }) => {
           type="file"
           accept=".csv,.xlsx,.xls,.txt"
           onChange={handleFileChange}
+          className="input-file"
+        />
+        <input
+          type="file"
+          accept=".txt,.json"
+          onChange={handleRubricChange}
           className="input-file"
         />
         <button className="jungle-btn" type="submit" disabled={loading}>

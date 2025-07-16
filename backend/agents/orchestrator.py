@@ -41,7 +41,10 @@ class AgentOrchestrator:
                 repo_tasks.append(task)
             
             repo_results = await asyncio.gather(*repo_tasks, return_exceptions=True)
-            
+            print("=== DEBUG: repo_results ===")
+            import pprint
+            pprint.pprint(repo_results)
+            print("=== END DEBUG ===")
             # Step 3: Build knowledge graph and store in vector DB
             valid_students = []
             for result in repo_results:
@@ -54,6 +57,8 @@ class AgentOrchestrator:
                         'code': result.get('code'),
                         'metadata': {'repo_url': result.get('repo_url')}
                     })
+                else:
+                    print("Skipping student due to missing code or error:", result)
             
             # Build knowledge graph
             await self.graph_rag_agent.process({
@@ -83,7 +88,8 @@ class AgentOrchestrator:
             # Step 6: Generate enhanced report
             report_result = await self.report_agent.process({
                 'results': batch_result.get('results', []),
-                'consistency_metrics': consistency_results
+                'consistency_metrics': consistency_results,
+                'rubric': rubric
             })
             
             return {
@@ -166,17 +172,54 @@ class AgentOrchestrator:
 
 # === Double Agentic LLM Functions ===
 
+import os
+import openai
+
 def process_with_azure_openai(repo, prompt):
     """
-    Simulate processing with Azure OpenAI.
-    Replace this stub with actual Azure OpenAI API logic.
+    Call Azure OpenAI Chat Completion API with the given prompt and repo context.
     Returns a dict. If a content policy error is encountered, return {'error': 'content_policy'}
     """
-    # TODO: Implement actual Azure OpenAI call
-    # Example stub: simulate a content policy error if prompt contains "policy"
-    if "policy" in prompt.lower():
-        return {"error": "content_policy"}
-    return {"response": f"Azure OpenAI processed repo: {repo} with prompt: {prompt}"}
+    try:
+        api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        api_base = os.getenv("OPENAI_API_BASE")
+        api_version = os.getenv("OPENAI_API_VERSION", "2023-05-15")
+        deployment_name = os.getenv("OPENAI_DEPLOYMENT_NAME")
+
+        if not all([api_key, api_base, api_version, deployment_name]):
+            return {"error": "Azure OpenAI environment variables not set properly."}
+
+        client = openai.AzureOpenAI(
+            api_key=api_key,
+            azure_endpoint=api_base,
+            api_version=api_version,
+        )
+
+        # Compose the message for the chat completion
+        messages = [
+            {"role": "system", "content": "You are an AI code assistant. Use the repo context to answer the prompt."},
+            {"role": "user", "content": f"Repo: {repo}\nPrompt: {prompt}"}
+        ]
+
+        response = client.chat.completions.create(
+            model=deployment_name,
+            messages=messages,
+        )
+
+        # Check for content policy error in response (Azure returns 400 with error details)
+        if hasattr(response, "error") and response.error.get("code") == "content_filter":
+            return {"error": "content_policy"}
+
+        # Return the response text
+        return {"response": response.choices[0].message.content}
+
+    except openai.OpenAIError as e:
+        # Check for content policy error
+        if hasattr(e, "error") and getattr(e.error, "code", None) == "content_filter":
+            return {"error": "content_policy"}
+        return {"error": str(e)}
+    except Exception as e:
+        return {"error": str(e)}
 
 def process_with_openai(repo, prompt):
     """

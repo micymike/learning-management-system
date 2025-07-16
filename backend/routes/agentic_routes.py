@@ -42,6 +42,9 @@ def agentic_process():
             "error": str(e)
         })
 
+from flask import send_file
+import io
+
 @agentic_routes.route('/api/agentic/upload_csv', methods=['POST'])
 def agentic_upload_csv():
     """
@@ -49,7 +52,7 @@ def agentic_upload_csv():
     Accepts multipart/form-data with:
       - file: CSV file with columns 'name' and 'repo_url'
       - rubric: rubric file (text or JSON)
-    Returns a JSON report with results for each student.
+    Returns an Excel file with results for each student.
     """
     if 'file' not in request.files or 'rubric' not in request.files:
         return jsonify({"success": False, "error": "CSV file and rubric file are required."}), 400
@@ -71,4 +74,26 @@ def agentic_upload_csv():
     orchestrator = AgentOrchestrator()
     result = asyncio.run(orchestrator.process_assessment(csv_data, rubric_content))
 
-    return jsonify(result)
+    # Generate Excel file from results
+    # The report_agent already generates the Excel file in _generate_excel_report
+    # We'll call it directly here for download
+    if 'results' in result and result['results']:
+        from agents.report_agent import ReportAgent
+        report_agent = ReportAgent()
+        excel_bytes = asyncio.run(report_agent._generate_excel_report(result['results']))
+        excel_bytes.seek(0)
+        # Save to backend/result.xlsx
+        import os
+        os.makedirs("backend", exist_ok=True)
+        with open("backend/result.xlsx", "wb") as f:
+            f.write(excel_bytes.getbuffer())
+        # Reset pointer for sending
+        excel_bytes.seek(0)
+        return send_file(
+            excel_bytes,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name='assessment_results.xlsx'
+        )
+    else:
+        return jsonify(result)
