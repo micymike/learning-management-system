@@ -1,0 +1,65 @@
+.postcard--title {
+    font-weight: bolder;
+    font-size: 38px;
+}
+
+.postcard--title:hover {
+    color: #6D0D7C;
+}
+
+.postcard--content {
+    font-weight: bolder;
+    font-size: 28px;
+    margin-top: 5px;
+    color:  #6D0D7C;
+    max-width: 800px;
+}
+
+.postcard--details {
+    font-size: 19px;
+    text-align: left;
+    padding: 2px;
+    margin-top: 6px;
+    max-width: 800px;
+   
+}
+
+.postcard--author {
+    font-size: 22px;
+    font-weight: bold;
+    color: #4d4646;
+    padding-top: 5px;
+    
+}
+
+.postcard--author:hover {
+    color: #6D0D7C;
+}
+
+.hr {
+    font-weight: bolder;
+    font-size: 2rem;
+}
+
+
+
+.like--button {
+    width: 40px;
+    height: 40px;
+    transition: .5s;
+}
+
+.postcard--like {
+    display: flex;
+    flex-direction: row;
+    margin-right: 50px;
+    align-items: center;
+}
+
+.like--text {
+    margin-left: 20px;
+    color: red;
+}
+
+
+

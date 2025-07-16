@@ -1,5 +1,10 @@
+agentic_routes = None  # placeholder to allow search/replace to work
+
 from flask import Blueprint, request, jsonify
-from agents.orchestrator import process_with_azure_openai, process_with_openai
+from agents.orchestrator import process_with_azure_openai, process_with_openai, AgentOrchestrator
+import csv
+import io
+import asyncio
 
 agentic_routes = Blueprint('agentic_routes', __name__)
 
@@ -36,3 +41,34 @@ def agentic_process():
             "result": fallback_result,
             "error": str(e)
         })
+
+@agentic_routes.route('/api/agentic/upload_csv', methods=['POST'])
+def agentic_upload_csv():
+    """
+    Endpoint to process a batch of student repos from a CSV and a rubric.
+    Accepts multipart/form-data with:
+      - file: CSV file with columns 'name' and 'repo_url'
+      - rubric: rubric file (text or JSON)
+    Returns a JSON report with results for each student.
+    """
+    if 'file' not in request.files or 'rubric' not in request.files:
+        return jsonify({"success": False, "error": "CSV file and rubric file are required."}), 400
+
+    csv_file = request.files['file']
+    rubric_file = request.files['rubric']
+
+    # Read rubric content
+    rubric_content = rubric_file.read().decode('utf-8')
+
+    # Read CSV content as string
+    csv_content = csv_file.read().decode('utf-8')
+    csv_data = {
+        'file_content': csv_content,
+        'filename': csv_file.filename
+    }
+
+    # Use AgentOrchestrator for real assessment
+    orchestrator = AgentOrchestrator()
+    result = asyncio.run(orchestrator.process_assessment(csv_data, rubric_content))
+
+    return jsonify(result)

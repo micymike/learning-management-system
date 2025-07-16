@@ -38,9 +38,9 @@ class CSVAgent(BaseAgent):
                     header = headers[i].lower()
                     if 'name' in header:
                         student_data['name'] = value.strip()
-                    elif 'github' in header and 'url' in header:
+                    elif header == 'repo_url' or ('github' in header and 'url' in header):
                         student_data['repo_url'] = value.strip()
-                        
+
             if 'name' in student_data and 'repo_url' in student_data:
                 students.append(student_data)
                 
@@ -57,9 +57,9 @@ class CSVAgent(BaseAgent):
                 value = str(row[col]) if not pd.isnull(row[col]) else ''
                 if 'name' in col_lower:
                     student_data['name'] = value.strip()
-                elif 'github' in col_lower and 'url' in col_lower:
+                elif col_lower == 'repo_url' or ('github' in col_lower and 'url' in col_lower):
                     student_data['repo_url'] = value.strip()
-                    
+
             if 'name' in student_data and 'repo_url' in student_data:
                 students.append(student_data)
                 

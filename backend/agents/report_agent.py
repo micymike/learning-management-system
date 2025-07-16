@@ -19,7 +19,7 @@ class ReportAgent(BaseAgent):
             summary = await self._generate_summary(results)
             
             return {
-                'excel_file': excel_file,
+                # 'excel_file': excel_file,  # Removed to avoid JSON serialization error
                 'summary': summary,
                 'status': 'completed'
             }

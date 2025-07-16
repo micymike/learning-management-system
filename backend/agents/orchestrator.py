@@ -64,7 +64,8 @@ class AgentOrchestrator:
             # Step 4: Use batch processing for grading (50% token reduction)
             batch_result = await self.batch_agent.process({
                 'students': valid_students,
-                'rubric': rubric
+                'rubric': rubric,
+                'api_type': 'openai'
             })
             
             # Step 5: Run consistency checks

@@ -65,14 +65,14 @@ class RepoAgent(BaseAgent):
                     continue
                     
                 code = ""
-                for ext in ['py', 'js', 'java', 'cpp', 'c', 'ts']:
+                for ext in ['py', 'js', 'jsx', 'ts', 'tsx', 'java', 'cpp', 'c']:
                     for file in glob.glob(os.path.join(tmpdir, '**', f'*.{ext}'), recursive=True):
                         try:
                             with open(file, 'r', encoding='utf-8', errors='ignore') as f:
                                 code += f.read() + '\n\n'
                         except Exception:
                             continue
-                            
+
                 return code[:10000] if code else ""
                 
         raise Exception(f"Could not access repository: {url}")

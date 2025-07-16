@@ -1,5 +1,13 @@
+import os
 from flask import Flask
 from routes.agentic_routes import agentic_routes
+
+# Load environment variables from .env if present
+try:
+    from dotenv import load_dotenv
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
+except ImportError:
+    pass
 
 def create_app():
     app = Flask(__name__)
